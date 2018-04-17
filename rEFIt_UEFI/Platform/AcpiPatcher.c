@@ -2294,8 +2294,8 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
     }
 
     while ((ProcLocalApic->Type == 0) && (ProcLocalApic->Length == 8)) {
-      ProcLocalApic++;
-      ApicCPUNum++;
+      ++ProcLocalApic;
+      ++ApicCPUNum;
       if (ApicCPUNum > 16) {
         DBG("Out of control with CPU numbers\n");
         break;

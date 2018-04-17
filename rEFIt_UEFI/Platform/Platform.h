@@ -441,20 +441,25 @@ MSR C001006B  0000-0000-0000-0000
 
 
 /* CPUID Index */
-#define CPUID_0    0
-#define CPUID_1    1
-#define CPUID_2    2
-#define CPUID_3    3
-#define CPUID_4    4
-#define CPUID_5    5
-#define CPUID_6    6
-#define CPUID_80   7
-#define CPUID_81   8
-#define CPUID_87   9
-#define CPUID_88   10
-#define CPUID_81E  11
-#define CPUID_15   15
-#define CPUID_MAX  16
+enum {
+
+  CPUID_0,
+  CPUID_1,
+  CPUID_2,
+  CPUID_3,
+  CPUID_4,
+  CPUID_5,
+  CPUID_6,
+  CPUID_80,
+  CPUID_81,
+  CPUID_87,
+  CPUID_88,
+  CPUID_81E,
+  CPUID_15,
+
+  CPUID_MAX
+
+} CPUID;
 
 /* CPU Cache */
 #define MAX_CACHE_COUNT  4
