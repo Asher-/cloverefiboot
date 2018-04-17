@@ -1051,8 +1051,11 @@ VOID findCPU(UINT8* dsdt, UINT32 length)
 				} else {
 				    DBG("| %a ", gAcpiCPUName[gAcpiCPUCount]);
 				}
-				if (++gAcpiCPUCount == 32)
-				    break;
+        
+				if (++gAcpiCPUCount == CPUID_MAX) {
+          DBG("Found max logical CPUs (%d). Ending DSDT search.\n", CPUID_MAX);
+          break;
+        }
 			}
 		}
 	}

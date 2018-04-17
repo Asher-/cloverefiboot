@@ -2385,6 +2385,20 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
                  ? gCPUStructure.Threads
                  : gCPUStructure.Cores;
   }
+  
+  if ( gAcpiCPUCount ) {
+    if ( ApicCPUCount > gAcpiCPUCount ) {
+      DBG("CPU count from DSDT is greater than CPU count from ACPI. Using count from DSDT.");
+      ApicCPUCount = gAcpiCPUCount;
+    }
+    else if ( ApicCPUCount < gAcpiCPUCount ) {
+      DBG("CPU count from ACPI is greater than CPU count from DSDT. Using count from ACPI.");
+      gAcpiCPUCount = ApicCPUCount;
+    }
+  }
+  else {
+    gAcpiCPUCount = ApicCPUCount;
+  }
 
   
   //  }
