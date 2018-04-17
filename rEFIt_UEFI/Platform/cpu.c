@@ -148,8 +148,8 @@ VOID GetCPUProperties (VOID)
   }
   
   /* get CPUID Values */
-  DoCpuid(0, gCPUStructure.CPUID[CPUID_0]);
-  gCPUStructure.Vendor  = gCPUStructure.CPUID[CPUID_0][EBX];
+  DoCpuid(0, gCPUStructure.CPUID[CPUID_00]);
+  gCPUStructure.Vendor  = gCPUStructure.CPUID[CPUID_00][EBX];
   /*
    * Get processor signature and decode
    * and bracket this with the approved procedure for reading the
@@ -158,8 +158,8 @@ VOID GetCPUProperties (VOID)
   if (gCPUStructure.Vendor == CPU_VENDOR_INTEL) {
     AsmWriteMsr64(MSR_IA32_BIOS_SIGN_ID, 0);
   }
-  DoCpuid(1, gCPUStructure.CPUID[CPUID_1]);
-  gCPUStructure.Signature = gCPUStructure.CPUID[CPUID_1][EAX];
+  DoCpuid(1, gCPUStructure.CPUID[CPUID_01]);
+  gCPUStructure.Signature = gCPUStructure.CPUID[CPUID_01][EAX];
   DBG("CPU Vendor = %x Model=%x\n", gCPUStructure.Vendor, gCPUStructure.Signature);
   if (gCPUStructure.Vendor == CPU_VENDOR_INTEL) {
     msr = AsmReadMsr64(MSR_IA32_BIOS_SIGN_ID);
@@ -170,9 +170,9 @@ VOID GetCPUProperties (VOID)
   
   //  DoCpuid(2, gCPUStructure.CPUID[2]);
   
-  DoCpuid(0x80000000, gCPUStructure.CPUID[CPUID_80]);
-  if((gCPUStructure.CPUID[CPUID_80][EAX] & 0x0000000f) >= 1){
-    DoCpuid(0x80000001, gCPUStructure.CPUID[CPUID_81]);
+  DoCpuid(0x80000000, gCPUStructure.CPUID[CPUID_07]);
+  if((gCPUStructure.CPUID[CPUID_07][EAX] & 0x0000000f) >= 1){
+    DoCpuid(0x80000001, gCPUStructure.CPUID[CPUID_08]);
   }
   
   gCPUStructure.Stepping  = (UINT8) bitfield(gCPUStructure.Signature, 3, 0);
@@ -181,8 +181,8 @@ VOID GetCPUProperties (VOID)
   gCPUStructure.Type      = (UINT8) bitfield(gCPUStructure.Signature, 13, 12);
   gCPUStructure.Extmodel  = (UINT8) bitfield(gCPUStructure.Signature, 19, 16);
   gCPUStructure.Extfamily = (UINT8) bitfield(gCPUStructure.Signature, 27, 20);
-  gCPUStructure.Features  = quad(gCPUStructure.CPUID[CPUID_1][ECX], gCPUStructure.CPUID[CPUID_1][EDX]);
-  gCPUStructure.ExtFeatures  = quad(gCPUStructure.CPUID[CPUID_81][ECX], gCPUStructure.CPUID[CPUID_81][EDX]);
+  gCPUStructure.Features  = quad(gCPUStructure.CPUID[CPUID_01][ECX], gCPUStructure.CPUID[CPUID_01][EDX]);
+  gCPUStructure.ExtFeatures  = quad(gCPUStructure.CPUID[CPUID_08][ECX], gCPUStructure.CPUID[CPUID_08][EDX]);
 
   DBG(" The CPU%a supported SSE4.1\n", (gCPUStructure.Features & CPUID_FEATURE_SSE4_1)?"":" not");
   /* Pack CPU Family and Model */
@@ -192,7 +192,7 @@ VOID GetCPUProperties (VOID)
   gCPUStructure.Model += (gCPUStructure.Extmodel << 4);
   
   /* get BrandString (if supported) */
-  if (gCPUStructure.CPUID[CPUID_80][EAX] >= 0x80000004) {
+  if (gCPUStructure.CPUID[CPUID_07][EAX] >= 0x80000004) {
     CHAR8         *s;
     ZeroMem(str, 128);
     /*
@@ -220,41 +220,41 @@ VOID GetCPUProperties (VOID)
   
   //Calculate Nr of Cores
   if (gCPUStructure.Features & CPUID_FEATURE_HTT) {
-    gCPUStructure.LogicalPerPackage  = (UINT32)bitfield(gCPUStructure.CPUID[CPUID_1][EBX], 23, 16); //Atom330 = 4
+    gCPUStructure.LogicalPerPackage  = (UINT32)bitfield(gCPUStructure.CPUID[CPUID_01][EBX], 23, 16); //Atom330 = 4
   } else {
     gCPUStructure.LogicalPerPackage  = 1;
   }
   if (gCPUStructure.Vendor == CPU_VENDOR_INTEL) {
-    DoCpuid(4, gCPUStructure.CPUID[CPUID_4]);
-    if (gCPUStructure.CPUID[CPUID_4][EAX]) {
-      gCPUStructure.CoresPerPackage =  (UINT32)bitfield(gCPUStructure.CPUID[CPUID_4][EAX], 31, 26) + 1; //Atom330 = 2
-      DBG("CPUID_4_eax=%x\n", gCPUStructure.CPUID[CPUID_4][EAX]);
-      DoCpuid(4, gCPUStructure.CPUID[CPUID_4]);
-      DBG("CPUID_4_eax=%x\n", gCPUStructure.CPUID[CPUID_4][EAX]);
-      DoCpuid(4, gCPUStructure.CPUID[CPUID_4]);
-      DBG("CPUID_4_eax=%x\n", gCPUStructure.CPUID[CPUID_4][EAX]);
+    DoCpuid(4, gCPUStructure.CPUID[CPUID_04]);
+    if (gCPUStructure.CPUID[CPUID_04][EAX]) {
+      gCPUStructure.CoresPerPackage =  (UINT32)bitfield(gCPUStructure.CPUID[CPUID_04][EAX], 31, 26) + 1; //Atom330 = 2
+      DBG("CPUID_04_eax=%x\n", gCPUStructure.CPUID[CPUID_04][EAX]);
+      DoCpuid(4, gCPUStructure.CPUID[CPUID_04]);
+      DBG("CPUID_04_eax=%x\n", gCPUStructure.CPUID[CPUID_04][EAX]);
+      DoCpuid(4, gCPUStructure.CPUID[CPUID_04]);
+      DBG("CPUID_04_eax=%x\n", gCPUStructure.CPUID[CPUID_04][EAX]);
     } else {
-      gCPUStructure.CoresPerPackage = (UINT32)bitfield(gCPUStructure.CPUID[CPUID_1][EBX], 18, 16);
+      gCPUStructure.CoresPerPackage = (UINT32)bitfield(gCPUStructure.CPUID[CPUID_01][EBX], 18, 16);
       if (gCPUStructure.CoresPerPackage) {
-        DBG("got cores from CPUID_1 = %d\n", gCPUStructure.CoresPerPackage);
+        DBG("got cores from CPUID_01 = %d\n", gCPUStructure.CoresPerPackage);
       }
     }
   } else if (gCPUStructure.Vendor == CPU_VENDOR_AMD) {
 
     post_startup_cpu_fixups();
-    if(gCPUStructure.CPUID[CPUID_80][EAX] >= 0x80000008){
-      DoCpuid(0x80000008, gCPUStructure.CPUID[CPUID_88]);
+    if(gCPUStructure.CPUID[CPUID_07][EAX] >= 0x80000008){
+      DoCpuid(0x80000008, gCPUStructure.CPUID[CPUID_0A]);
     }
     if (gCPUStructure.Extfamily < 0x8) {
-      gCPUStructure.CoresPerPackage =  (gCPUStructure.CPUID[CPUID_88][ECX] & 0xFF) + 1;
+      gCPUStructure.CoresPerPackage =  (gCPUStructure.CPUID[CPUID_0A][ECX] & 0xFF) + 1;
     } else {
       // Bronya : test for SMT
       INTN Logical = 1;
-      if(gCPUStructure.CPUID[CPUID_80][EAX] >= 0x8000001E) {
-        DoCpuid(0x8000001E, gCPUStructure.CPUID[CPUID_81E]);
-        Logical = (INTN)bitfield(gCPUStructure.CPUID[CPUID_81E][EBX], 15, 8) + 1;
+      if(gCPUStructure.CPUID[CPUID_07][EAX] >= 0x8000001E) {
+        DoCpuid(0x8000001E, gCPUStructure.CPUID[CPUID_0B]);
+        Logical = (INTN)bitfield(gCPUStructure.CPUID[CPUID_0B][EBX], 15, 8) + 1;
       }
-      gCPUStructure.CoresPerPackage =  (UINT32)(((gCPUStructure.CPUID[CPUID_88][ECX] & 0xFF) + 1) / Logical);
+      gCPUStructure.CoresPerPackage =  (UINT32)(((gCPUStructure.CPUID[CPUID_0A][ECX] & 0xFF) + 1) / Logical);
     }
     gCPUStructure.Cores = (UINT8)gCPUStructure.CoresPerPackage;
     gCPUStructure.Threads = (UINT8)gCPUStructure.LogicalPerPackage;
@@ -269,20 +269,20 @@ VOID GetCPUProperties (VOID)
   }
   
   /* Fold in the Invariant TSC feature bit, if present */
-  if(gCPUStructure.CPUID[CPUID_80][EAX] >= 0x80000007){
-    DoCpuid(0x80000007, gCPUStructure.CPUID[CPUID_87]);
+  if(gCPUStructure.CPUID[CPUID_07][EAX] >= 0x80000007){
+    DoCpuid(0x80000007, gCPUStructure.CPUID[CPUID_09]);
     gCPUStructure.ExtFeatures |=
-    gCPUStructure.CPUID[CPUID_87][EDX] & (UINT32)CPUID_EXTFEATURE_TSCI;
+    gCPUStructure.CPUID[CPUID_09][EDX] & (UINT32)CPUID_EXTFEATURE_TSCI;
   }
   
-  if ((bit(9) & gCPUStructure.CPUID[CPUID_1][ECX]) != 0) {
+  if ((bit(9) & gCPUStructure.CPUID[CPUID_01][ECX]) != 0) {
     SSSE3 = TRUE;
   }
   gCPUStructure.Turbo = FALSE;
   if (gCPUStructure.Vendor == CPU_VENDOR_INTEL) {
     // Determine turbo boost support
-    DoCpuid(6, gCPUStructure.CPUID[CPUID_6]);
-    gCPUStructure.Turbo = ((gCPUStructure.CPUID[CPUID_6][EAX] & (1 << 1)) != 0);
+    DoCpuid(6, gCPUStructure.CPUID[CPUID_06]);
+    gCPUStructure.Turbo = ((gCPUStructure.CPUID[CPUID_06][EAX] & (1 << 1)) != 0);
     DBG(" The CPU%a supported turbo\n", gCPUStructure.Turbo?"":" not");
     //get cores and threads
     switch (gCPUStructure.Model)
@@ -388,11 +388,11 @@ VOID GetCPUProperties (VOID)
   }
   
   //New for SkyLake 0x4E, 0x5E
-  if(gCPUStructure.CPUID[CPUID_0][EAX] >= 0x15) {
+  if(gCPUStructure.CPUID[CPUID_00][EAX] >= 0x15) {
     UINT32 Num, Denom;
-    DoCpuid(0x15, gCPUStructure.CPUID[CPUID_15]);
-    Num = gCPUStructure.CPUID[CPUID_15][EBX];
-    Denom = gCPUStructure.CPUID[CPUID_15][EAX];
+    DoCpuid(0x15, gCPUStructure.CPUID[CPUID_0C]);
+    Num = gCPUStructure.CPUID[CPUID_0C][EBX];
+    Denom = gCPUStructure.CPUID[CPUID_0C][EAX];
     DBG(" TSC/CCC Information Leaf:\n");
     DBG("  numerator     : %d\n", Num);
     DBG("  denominator   : %d\n", Denom);
@@ -530,7 +530,7 @@ VOID GetCPUProperties (VOID)
                 gCPUStructure.BusRatioMax = (UINT8)flex_ratio;
                 }*/
              }
-             if ((gCPUStructure.CPUID[CPUID_6][ECX] & (1 << 3)) != 0) {
+             if ((gCPUStructure.CPUID[CPUID_06][ECX] & (1 << 3)) != 0) {
                msr = AsmReadMsr64(IA32_ENERGY_PERF_BIAS); //0x1B0
                MsgLog("MSR 0x1B0             %08x\n", msr);
              }
@@ -1147,7 +1147,7 @@ VOID SetCPUProperties (VOID)
 {
   UINT64    msr = 0;
 
-  if ((gCPUStructure.CPUID[CPUID_6][ECX] & (1 << 3)) != 0) {
+  if ((gCPUStructure.CPUID[CPUID_06][ECX] & (1 << 3)) != 0) {
     if (gSettings.SavingMode != 0xFF) {
       msr = gSettings.SavingMode;
       AsmWriteMsr64(IA32_ENERGY_PERF_BIAS, msr);

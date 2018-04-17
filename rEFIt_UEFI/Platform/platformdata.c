@@ -1223,7 +1223,7 @@ VOID GetDefaultSettings()
   }
   
 //CPU
-  //gSettings.EnableISS            = FALSE; //((gCPUStructure.CPUID[CPUID_1][ECX] & (1<<7)) != 0);
+  //gSettings.EnableISS            = FALSE; //((gCPUStructure.CPUID[CPUID_01][ECX] & (1<<7)) != 0);
   gSettings.Turbo                = gCPUStructure.Turbo;
   gSettings.SavingMode           = 0xFF;  //means not set
   //MsgLog ("Turbo default value: %a\n", gCPUStructure.Turbo ? "Yes" : "No");
