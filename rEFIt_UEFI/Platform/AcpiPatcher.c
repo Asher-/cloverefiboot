@@ -2380,14 +2380,13 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
     }
   }
   else {
-    DBG("No APIC table Found !!!\n");
+    DBG("No APIC table found - guessing based on threads and cores!!!\n");
+    ApicCPUCount = (gCPUStructure.Threads >= gCPUStructure.Cores)
+                 ? gCPUStructure.Threads
+                 : gCPUStructure.Cores;
   }
 
-  if (gCPUStructure.Threads >= gCPUStructure.Cores) {
-    ApicCPUCount = gCPUStructure.Threads;
-  } else {
-    ApicCPUCount = gCPUStructure.Cores;
-  }
+  
   //  }
   /*
    At this moment we have CPU numbers from DSDT - acpi_cpu_num
