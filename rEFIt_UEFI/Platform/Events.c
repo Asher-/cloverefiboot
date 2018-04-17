@@ -216,7 +216,7 @@ OnExitBootServices(IN EFI_EVENT Event, IN VOID *Context)
 /*
 //  EFI_STATUS Status;
   {
-    //    UINT32                    machineSignature    = 0;
+    //    UINT32                    gMachineSignature    = 0;
     EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE     *FadtPointer = NULL;
     EFI_ACPI_4_0_FIRMWARE_ACPI_CONTROL_STRUCTURE  *Facs = NULL;
 
@@ -231,7 +231,7 @@ OnExitBootServices(IN EFI_EVENT Event, IN VOID *Context)
       AsciiPrint("  GlobalLock           =%08lx\n", Facs->GlobalLock);
       AsciiPrint("  Flags                =%08lx\n", Facs->Flags);
       AsciiPrint(" HS at offset 0x%08x\n", OFFSET_OF(EFI_ACPI_4_0_FIRMWARE_ACPI_CONTROL_STRUCTURE, HardwareSignature));
- //     machineSignature = Facs->HardwareSignature;
+ //     gMachineSignature = Facs->HardwareSignature;
     }
   }
 */  

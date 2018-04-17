@@ -788,7 +788,7 @@ static VOID StartLoader(IN LOADER_ENTRY *Entry)
   }
 /*
   {
-    //    UINT32                    machineSignature    = 0;
+    //    UINT32                    gMachineSignature    = 0;
     EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE     *FadtPointer = NULL;
     EFI_ACPI_4_0_FIRMWARE_ACPI_CONTROL_STRUCTURE  *Facs = NULL;
 
@@ -803,7 +803,7 @@ static VOID StartLoader(IN LOADER_ENTRY *Entry)
       DBG("  GlobalLock           =%08lx\n", Facs->GlobalLock);
       DBG("  Flags                =%08lx\n", Facs->Flags);
       DBG(" HS at offset 0x%08x\n", OFFSET_OF(EFI_ACPI_4_0_FIRMWARE_ACPI_CONTROL_STRUCTURE, HardwareSignature));
-      //   machineSignature = Facs->HardwareSignature;
+      //   gMachineSignature = Facs->HardwareSignature;
     }
   }
 */
@@ -2066,7 +2066,7 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
 
 #if 1 //HIBERNATE_DUMP_DATA
   {
-//    UINT32                    machineSignature    = 0;
+//    UINT32                    gMachineSignature    = 0;
     EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE     *FadtPointer = NULL;
     EFI_ACPI_4_0_FIRMWARE_ACPI_CONTROL_STRUCTURE  *Facs = NULL;
 
@@ -2081,7 +2081,7 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
       DBG("  GlobalLock           =%08lx\n", Facs->GlobalLock);
       DBG("  Flags                =%08lx\n", Facs->Flags);
        */
-      machineSignature = Facs->HardwareSignature;
+      gMachineSignature = Facs->HardwareSignature;
     }
 /*------------------------------------------------------
     //DoHibernateWake = DumpVariable(L"Boot0082", &gEfiGlobalVariableGuid, 8);

@@ -1675,7 +1675,7 @@ extern INPUT_ITEM                     *InputItems;
 extern BOOLEAN                        SavePreBootLog;
 extern CHAR8                          *BootOSName;
 //extern EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput;
-extern UINT64                    machineSignature;
+extern UINT64                    gMachineSignature;
 
 extern EFI_GUID                        gEfiAppleBootGuid;
 extern EFI_GUID                        gEfiAppleNvramGuid;
@@ -1701,12 +1701,12 @@ extern UINTN                           gItemID;
 extern INTN                            OldChosenTheme;
 extern INTN                            OldChosenConfig;
 
-//CHAR8*   orgBiosDsdt;
-extern UINT64                          BiosDsdt;
-extern UINT32                          BiosDsdtLen;
-extern UINT8                           acpi_cpu_count;
-extern CHAR8                           *acpi_cpu_name[];
-extern CHAR8                           *acpi_cpu_score;
+//CHAR8*   orggBiosDsdt;
+extern UINT64                          gBiosDsdt;
+extern UINT32                          ggBiosDsdtLen;
+extern UINT8                           gAcpiCPUCount;
+extern CHAR8                           *gAcpiCPUName[];
+extern CHAR8                           *gAcpiCPUScore;
 extern BOOLEAN                         SSSE3;
 extern BOOLEAN                         defDSM;
 extern UINT16                          dropDSM;
@@ -1733,7 +1733,7 @@ extern BOOLEAN                        gRemapSmBiosIsRequire;  // syscl: pass arg
 //-----------------------------------
 
 VOID
-FixBiosDsdt (
+FixgBiosDsdt (
   UINT8                                     *Dsdt,
   EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE *fadt,
   CHAR8                                     *OSVersion

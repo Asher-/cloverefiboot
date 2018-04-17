@@ -58,13 +58,13 @@ UINTN         *XsdtReplaceSizes = NULL;
 #define RsdtEntryFromIndex(index) (EFI_ACPI_DESCRIPTION_HEADER*)(UINTN)*RsdtEntryPtrFromIndex(index)
 #define XsdtEntryFromIndex(index) (EFI_ACPI_DESCRIPTION_HEADER*)(UINTN)ReadUnaligned64(XsdtEntryPtrFromIndex(index))
 
-UINT64      BiosDsdt;
-UINT32      BiosDsdtLen;
-UINT8       acpi_cpu_count;
-CHAR8*      acpi_cpu_name[128];
-CHAR8*      acpi_cpu_score;
+UINT64      gBiosDsdt;
+UINT32      ggBiosDsdtLen;
+UINT8       gAcpiCPUCount;
+CHAR8*      gAcpiCPUName[128];
+CHAR8*      gAcpiCPUScore;
 
-UINT64      machineSignature;
+UINT64      gMachineSignature;
 
 extern OPER_REGION *gRegions;
 //-----------------------------------
@@ -956,7 +956,7 @@ STATIC UINT8 NameSSDT2[] = {0x80, 0x53, 0x53, 0x44, 0x54};
 // OperationRegion (CSDT, SystemMemory, 0xDF5DBE18, 0x84)
 STATIC UINT8 NameCSDT2[] = {0x80, 0x43, 0x53, 0x44, 0x54};
 
-//UINT32 get_size(UINT8 * An, UINT32 ); // Let borrow from FixBiosDsdt.
+//UINT32 get_size(UINT8 * An, UINT32 ); // Let borrow from FixgBiosDsdt.
 
 static CHAR16* GenerateFileName(CHAR16* FileNamePrefix, UINTN SsdtCount, UINTN ChildCount, CHAR8 OemTableId[9])
 // ChildCount == IGNORE_INDEX indicates normal SSDT
@@ -1664,12 +1664,12 @@ VOID SaveOemDsdt(BOOLEAN FullPatch)
       return;
     }
 
-    BiosDsdt = FadtPointer->Dsdt;
+    gBiosDsdt = FadtPointer->Dsdt;
     if (FadtPointer->Header.Revision >= EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE_REVISION &&
         FadtPointer->XDsdt != 0) {
-      BiosDsdt = FadtPointer->XDsdt;
+      gBiosDsdt = FadtPointer->XDsdt;
     }
-    buffer = (UINT8*)(UINTN)BiosDsdt;
+    buffer = (UINT8*)(UINTN)gBiosDsdt;
   }
 
   if (!buffer) {
@@ -1692,7 +1692,7 @@ VOID SaveOemDsdt(BOOLEAN FullPatch)
     CopyMem((VOID*)(UINTN)dsdt, buffer, DsdtLen);
     buffer = (UINT8*)(UINTN)dsdt;
     if (FullPatch) {
-      FixBiosDsdt(buffer, FadtPointer, NULL);
+      FixgBiosDsdt(buffer, FadtPointer, NULL);
       DsdtLen = ((EFI_ACPI_DESCRIPTION_HEADER*)buffer)->Length;
       FreePool(OriginDsdt); //avoid memory leak
       OriginDsdt = OriginDsdtFixed;
@@ -2040,9 +2040,9 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
     CopyMem(&newFadt->ResetReg, pmBlock, 0x80);
     //but these common values are not specific, so adjust
     //ACPIspec said that if Xdsdt !=0 then Dsdt must be =0. But real Mac no! Both values present
-    if (BiosDsdt) {
-      newFadt->XDsdt = BiosDsdt;
-      newFadt->Dsdt = (UINT32)BiosDsdt;
+    if (gBiosDsdt) {
+      newFadt->XDsdt = gBiosDsdt;
+      newFadt->Dsdt = (UINT32)gBiosDsdt;
     } else if (newFadt->Dsdt) {
         newFadt->XDsdt = (UINT64)(newFadt->Dsdt);
     } else if (XDsdt) {
@@ -2061,8 +2061,8 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
     //patch for FACS included here
     Facs->Version = EFI_ACPI_4_0_FIRMWARE_ACPI_CONTROL_STRUCTURE_VERSION;
     if (GlobalConfig.SignatureFixup) {
-      DBG(" SignatureFixup: 0x%x -> 0x%x\n", Facs->HardwareSignature, machineSignature);
-      Facs->HardwareSignature = (UINT32)machineSignature;
+      DBG(" SignatureFixup: 0x%x -> 0x%x\n", Facs->HardwareSignature, gMachineSignature);
+      Facs->HardwareSignature = (UINT32)gMachineSignature;
     } else {
       DBG(" SignatureFixup: 0x%x -> 0x0\n", Facs->HardwareSignature);
       Facs->HardwareSignature = 0x0;
@@ -2201,7 +2201,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
   //  if (gSettings.FixDsdt) { //fix even with zero mask because we want to know PCIRootUID and CPUBase and count(?)
   DBG("Apply DsdtFixMask=0x%08x\n", gSettings.FixDsdt);
   DBG("   drop _DSM mask=0x%04x\n", dropDSM);
-  FixBiosDsdt((UINT8*)(UINTN)FadtPointer->XDsdt, FadtPointer, OSVersion);
+  FixgBiosDsdt((UINT8*)(UINTN)FadtPointer->XDsdt, FadtPointer, OSVersion);
   if (gSettings.DebugDSDT) {
     for (Index=0; Index < 60; Index++) {
       CHAR16          DsdtPatchedName[128];
@@ -2274,7 +2274,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
 //  DBG("----------- size of APIC PROC = %d\n", sizeof(EFI_ACPI_2_0_PROCESSOR_LOCAL_APIC_STRUCTURE));
   //
   // 1. For CPU base number 0 or 1.  codes from SunKi
-  CPUBase = acpi_cpu_name[0][3] - '0'; //"CPU0"
+  CPUBase = gAcpiCPUName[0][3] - '0'; //"CPU0"
   if ((UINT8)CPUBase > 11) {
     DBG("Abnormal CPUBase=%x will set to 0\n", CPUBase);
     CPUBase = 0;
@@ -2389,14 +2389,14 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
   
   //  }
   /*
-   At this moment we have CPU numbers from DSDT - acpi_cpu_num
-   and from CPU characteristics gCPUStructure
+   At this moment we have CPU numbers from DSDT - gAcpiCPUCount
+   and from CPU characteristics in gCPUStructure
    Also we had the number from APIC table ApicCPUCount
    What to choose?
-   Since rev745 I will return to acpi_cpu_count global variable
+   Since rev745 I will return to gAcpiCPUCount global variable
    */
-  if (acpi_cpu_count) {
-    ApicCPUCount = acpi_cpu_count;
+  if (gAcpiCPUCount) {
+    ApicCPUCount = gAcpiCPUCount;
   }
 
   if (gSettings.GeneratePStates || gSettings.GeneratePluginType) {

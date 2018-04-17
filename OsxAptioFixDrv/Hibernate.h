@@ -60,7 +60,7 @@ typedef struct _IOHibernateImageHeader
     UINT32  performanceDataSize;
     
     UINT64	encryptStart;
-    UINT64	machineSignature;
+    UINT64	gMachineSignature;
 	
     UINT32  previewSize;
     UINT32  previewPageListSize;
