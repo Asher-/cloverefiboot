@@ -19,6 +19,7 @@ Re-Work by Slice 2011.
 
 #include "StateGenerator.h"
 #include "AmlGenerator.h"
+#include <stdbool.h>
 
 #define HPET_SIGN        SIGNATURE_32('H','P','E','T')
 #define APIC_SIGN        SIGNATURE_32('A','P','I','C')
@@ -1850,7 +1851,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
   EFI_ACPI_2_0_LOCAL_APIC_NMI_STRUCTURE                 *LocalApicNMI;
 //  UINTN             ApicLen;
   UINT8             CPUBase;
-  UINTN             ApicCPUNum;
+  UINTN             ApicCPUCount = 0;
   UINT8             *SubTable;
   BOOLEAN           DsdtLoaded = FALSE;
   BOOLEAN           NeedUpdate = FALSE;
@@ -2279,34 +2280,38 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
     CPUBase = 0;
   }
 
-  ApicCPUNum = 0;
   // 2. For absent NMI subtable
   xf = ScanXSDT(APIC_SIGN, 0);
   if (xf) {
-    ApicTable = (EFI_ACPI_DESCRIPTION_HEADER*)(UINTN)(*xf);
-    //      ApicLen = ApicTable->Length;
-    ProcLocalApic = (EFI_ACPI_2_0_PROCESSOR_LOCAL_APIC_STRUCTURE *)(UINTN)(*xf + sizeof(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER));
-    //determine first ID of CPU. This must be 0 for Mac and for good Hack
-    // but = 1 for stupid ASUS
-    //
-    if (ProcLocalApic->Type == 0) {
-      ApicCPUBase = ProcLocalApic->AcpiProcessorId; //we want first instance
-    }
 
-    while ((ProcLocalApic->Type == 0) && (ProcLocalApic->Length == 8)) {
-      ++ProcLocalApic;
-      ++ApicCPUNum;
-      if (ApicCPUNum > 16) {
-        DBG("Out of control with CPU numbers\n");
+    ApicTable = (EFI_ACPI_DESCRIPTION_HEADER*)(UINTN)(*xf);
+    ProcLocalApic = (EFI_ACPI_2_0_PROCESSOR_LOCAL_APIC_STRUCTURE *)(UINTN)(*xf + sizeof(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER));
+    
+    DBG("Searching ACPI definitions for logical CPUs.\n");
+    bool   found_first_cpu = false;
+    for ( UINTN cpu_id = 0 ; cpu_id < CPUID_MAX ; ++cpu_id, found_first_cpu = ApicCPUCount ) {
+      
+      if ((ProcLocalApic->Type == 0) && (ProcLocalApic->Length == 8)) {
+        // Not all ACPI configurations make the first CPU 00,
+        // so we need to find the first configured CPU.
+        if ( ! found_first_cpu ) {
+          DBG("Found first CPU at index (%d). Ending search.\n", CPUID_MAX);
+        }
+        if ( ++ApicCPUCount == CPUID_MAX ) {
+          DBG("Found max logical CPUs (%d). Ending search.\n", CPUID_MAX);
+          break;
+        }
+      }
+      else if ( found_first_cpu ) {
+        DBG("Found first CPU and reached unconfigured CPU at index %d. Ending search.\n", cpu_id);
         break;
       }
-    }
-    //fool proof
-    if ((ApicCPUNum == 0) || (ApicCPUNum > 16)) {
-      ApicCPUNum = gCPUStructure.Threads;
+  
+      ++ProcLocalApic;
     }
 
-    DBG("CPUBase=%d and ApicCPUBase=%d ApicCPUNum=%d\n", CPUBase, ApicCPUBase, ApicCPUNum);
+    DBG("CPUBase=%d and ApicCPUBase=%d ApicCPUCount=%d\n", CPUBase, ApicCPUBase, ApicCPUCount);
+
     //reallocate table
     if (gSettings.PatchNMI) {
 
@@ -2347,7 +2352,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
           DBG("LocalApicNMI is already present, no patch needed\n");
         } else {
           LocalApicNMI = (EFI_ACPI_2_0_LOCAL_APIC_NMI_STRUCTURE*)((UINTN)ApicTable + ApicTable->Length);
-          for (Index = 0; Index < ApicCPUNum; Index++) {
+          for (Index = 0; Index < ApicCPUCount; Index++) {
             LocalApicNMI->Type = EFI_ACPI_4_0_LOCAL_APIC_NMI;
             LocalApicNMI->Length = sizeof(EFI_ACPI_4_0_LOCAL_APIC_NMI_STRUCTURE);
             LocalApicNMI->AcpiProcessorId = (UINT8)(ApicCPUBase + Index);
@@ -2379,25 +2384,25 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
   }
 
   if (gCPUStructure.Threads >= gCPUStructure.Cores) {
-    ApicCPUNum = gCPUStructure.Threads;
+    ApicCPUCount = gCPUStructure.Threads;
   } else {
-    ApicCPUNum = gCPUStructure.Cores;
+    ApicCPUCount = gCPUStructure.Cores;
   }
   //  }
   /*
    At this moment we have CPU numbers from DSDT - acpi_cpu_num
    and from CPU characteristics gCPUStructure
-   Also we had the number from APIC table ApicCPUNum
+   Also we had the number from APIC table ApicCPUCount
    What to choose?
    Since rev745 I will return to acpi_cpu_count global variable
    */
   if (acpi_cpu_count) {
-    ApicCPUNum = acpi_cpu_count;
+    ApicCPUCount = acpi_cpu_count;
   }
 
   if (gSettings.GeneratePStates || gSettings.GeneratePluginType) {
     Status = EFI_NOT_FOUND;
-    Ssdt = generate_pss_ssdt(CPUBase, ApicCPUNum);
+    Ssdt = generate_pss_ssdt(CPUBase, ApicCPUCount);
     if (Ssdt) {
       Status = InsertTable(Ssdt, Ssdt->Length);
     }
@@ -2408,7 +2413,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
 
   if (gSettings.GenerateCStates) {
     Status = EFI_NOT_FOUND;
-    Ssdt = generate_cst_ssdt(FadtPointer, CPUBase, ApicCPUNum);
+    Ssdt = generate_cst_ssdt(FadtPointer, CPUBase, ApicCPUCount);
     if (Ssdt) {
       Status = InsertTable(Ssdt, Ssdt->Length);
     }
