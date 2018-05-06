@@ -60,9 +60,10 @@ UINTN         *XsdtReplaceSizes = NULL;
 
 UINT64      gBiosDsdt;
 UINT32      ggBiosDsdtLen;
-UINT8       gAcpiCPUCount;
+UINT8       gPhysicalCPUCount = 0;
+UINT8       gLogicalCPUCount = 0;
 CHAR8*      gAcpiCPUName[128];
-CHAR8*      gAcpiCPUScore;
+CHAR8*      gAcpiCPUSocket;
 
 UINT64      gMachineSignature;
 
@@ -1836,7 +1837,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
   CHAR16*                 PathDsdt;    //  = L"\\DSDT.aml";
   CHAR16*                 PatchedAPIC = L"\\EFI\\CLOVER\\ACPI\\origin\\APIC-p.aml";
   UINT32*                 rf = NULL;
-  UINT64*                 xf = NULL;
+  UINT64*                 xsdtTables = NULL;
   UINT64                  XDsdt; //save values if present
   UINT64                  XFirmwareCtrl;
   EFI_FILE                *RootDir;
@@ -1891,20 +1892,20 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
   if (RsdPointer->Revision >=2 && (RsdPointer->XsdtAddress < (UINT64)(UINTN)-1)) {
     Xsdt = (XSDT_TABLE*)(UINTN)RsdPointer->XsdtAddress;
  //   DBG("XSDT 0x%p\n", Xsdt);
-    xf = ScanXSDT(EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE_SIGNATURE, 0);
-    if(xf) {
+    xsdtTables = ScanXSDT(EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE_SIGNATURE, 0);
+    if(xsdtTables) {
       //Slice - change priority. First Xsdt, second Rsdt
-      if (*xf) {
-        FadtPointer = (EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE*)(UINTN)(*xf);
+      if (*xsdtTables) {
+        FadtPointer = (EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE*)(UINTN)(*xsdtTables);
  //       DBG("FADT from XSDT: 0x%p\n", FadtPointer);
       } else {
-        *xf =  (UINT64)(UINTN)FadtPointer;
+        *xsdtTables =  (UINT64)(UINTN)FadtPointer;
  //       DBG("reuse FADT\n");  //never happens
       }
     }
   }
 
-  if(!xf && Rsdt){
+  if(!xsdtTables && Rsdt){
      DBG("Xsdt is not found! Creating new one\n");
      //We should make here ACPI20 RSDP with all needed subtables based on ACPI10
     BufferPtr = EFI_SYSTEM_TABLE_MAX_ADDRESS;
@@ -2281,11 +2282,11 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
   }
 
   // 2. For absent NMI subtable
-  xf = ScanXSDT(APIC_SIGN, 0);
-  if (xf) {
+  xsdtTables = ScanXSDT(APIC_SIGN, 0);
+  if (xsdtTables) {
 
-    ApicTable = (EFI_ACPI_DESCRIPTION_HEADER*)(UINTN)(*xf);
-    ProcLocalApic = (EFI_ACPI_2_0_PROCESSOR_LOCAL_APIC_STRUCTURE *)(UINTN)(*xf + sizeof(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER));
+    ApicTable = (EFI_ACPI_DESCRIPTION_HEADER*)(UINTN)(*xsdtTables);
+    ProcLocalApic = (EFI_ACPI_2_0_PROCESSOR_LOCAL_APIC_STRUCTURE *)(UINTN)(*xsdtTables + sizeof(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER));
     
     DBG("Searching ACPI definitions for logical CPUs.\n");
     bool   found_first_cpu = false;
@@ -2295,7 +2296,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
         // Not all ACPI configurations make the first CPU 00,
         // so we need to find the first configured CPU.
         if ( ! found_first_cpu ) {
-          DBG("Found first CPU at index (%d). Ending search.\n", CPUID_MAX);
+          DBG("Found first CPU at index (%d). Ending search.\n", cpu_id);
         }
         if ( ++ApicCPUCount == CPUID_MAX ) {
           DBG("Found max logical CPUs (%d). Ending search.\n", CPUID_MAX);
@@ -2303,7 +2304,7 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
         }
       }
       else if ( found_first_cpu ) {
-        DBG("Found first CPU and reached unconfigured CPU at index %d. Ending search.\n", cpu_id);
+        DBG("Reached unconfigured CPU at index %d. Found at least one CPU, so ending search.\n", cpu_id);
         break;
       }
   
@@ -2314,14 +2315,21 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
 
     //reallocate table
     if (gSettings.PatchNMI) {
+      
+      DBG("Attempting NMI patch.\n");
 
       BufferPtr = EFI_SYSTEM_TABLE_MAX_ADDRESS;
       Status=gBS->AllocatePages(AllocateMaxAddress, EfiACPIReclaimMemory, 1, &BufferPtr);
-      if(!EFI_ERROR(Status))
-      {
-        //save old table and drop it from XSDT
+
+      if( ! EFI_ERROR(Status) ) {
+      
+        DBG("Saving unpatched table.\n");
         CopyMem((VOID*)(UINTN)BufferPtr, ApicTable, ApicTable->Length);
+
+        DBG("Dropping unpatched table\n");
         DropTableFromXSDT(APIC_SIGN, 0, 0);
+
+        DBG("Patching table.\n");
         ApicTable = (EFI_ACPI_DESCRIPTION_HEADER*)(UINTN)BufferPtr;
         ApicTable->Revision = EFI_ACPI_4_0_MULTIPLE_APIC_DESCRIPTION_TABLE_REVISION;
         CopyMem(&ApicTable->OemId, oemID, 6);
@@ -2344,13 +2352,16 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
           bufferLen = (UINTN)SubTable[1];
           SubTable += bufferLen;
           if (((UINTN)SubTable - (UINTN)BufferPtr) >= ApicTable->Length) {
+            DBG("Done with subtable.");
             break;
           }
         }
 
         if (*SubTable == EFI_ACPI_4_0_LOCAL_APIC_NMI) {
           DBG("LocalApicNMI is already present, no patch needed\n");
-        } else {
+        }
+        else {
+          DBG("Patch needed to create LocalApicNMI.\n");
           LocalApicNMI = (EFI_ACPI_2_0_LOCAL_APIC_NMI_STRUCTURE*)((UINTN)ApicTable + ApicTable->Length);
           for (Index = 0; Index < ApicCPUCount; Index++) {
             LocalApicNMI->Type = EFI_ACPI_4_0_LOCAL_APIC_NMI;
@@ -2361,22 +2372,25 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
             LocalApicNMI++;
             ApicTable->Length += LocalApicNMI->Length;
           }
-          DBG("ApicTable new Length=%d\n", ApicTable->Length);
-          // insert corrected MADT
+          DBG("Created LocalApicNMI. ApicTable new Length=%d\n", ApicTable->Length);
         }
 
         Status = InsertTable(ApicTable, ApicTable->Length);
+
         if (!EFI_ERROR(Status)) {
           DBG("New APIC table successfully inserted\n");
         }
+        
         Status = egSaveFile(SelfRootDir, PatchedAPIC, (UINT8 *)ApicTable, ApicTable->Length);
-        if (EFI_ERROR(Status)) {
+        if ( EFI_ERROR(Status) ) {
+          DBG("Error patching NMI.\n");
           Status = egSaveFile(NULL, PatchedAPIC,  (UINT8 *)ApicTable, ApicTable->Length);
         }
-        if (!EFI_ERROR(Status)) {
+        else {
           DBG("Patched APIC table saved into efi/clover/acpi/origin/APIC-p.aml \n");
         }
       }
+      DBG("Done attempting NMI patch.\n");
     }
   }
   else {
@@ -2386,31 +2400,18 @@ EFI_STATUS PatchACPI(IN REFIT_VOLUME *Volume, CHAR8 *OSVersion)
                  : gCPUStructure.Cores;
   }
   
-  if ( gAcpiCPUCount ) {
-    if ( ApicCPUCount > gAcpiCPUCount ) {
-      DBG("CPU count from DSDT is greater than CPU count from ACPI. Using count from DSDT.");
-      ApicCPUCount = gAcpiCPUCount;
+  if ( gLogicalCPUCount ) {
+    if ( ApicCPUCount > gLogicalCPUCount ) {
+      DBG("CPU count from ACPI is greater than CPU count from DSDT. Trusting ACPI.\n");
+      ApicCPUCount = gLogicalCPUCount;
     }
-    else if ( ApicCPUCount < gAcpiCPUCount ) {
-      DBG("CPU count from ACPI is greater than CPU count from DSDT. Using count from ACPI.");
-      gAcpiCPUCount = ApicCPUCount;
+    else if ( ApicCPUCount < gLogicalCPUCount ) {
+      DBG("CPU count from ACPI is less than CPU count from DSDT. Trusting ACPI.\n");
+      gLogicalCPUCount = ApicCPUCount;
     }
   }
   else {
-    gAcpiCPUCount = ApicCPUCount;
-  }
-
-  
-  //  }
-  /*
-   At this moment we have CPU numbers from DSDT - gAcpiCPUCount
-   and from CPU characteristics in gCPUStructure
-   Also we had the number from APIC table ApicCPUCount
-   What to choose?
-   Since rev745 I will return to gAcpiCPUCount global variable
-   */
-  if (gAcpiCPUCount) {
-    ApicCPUCount = gAcpiCPUCount;
+    gLogicalCPUCount = ApicCPUCount;
   }
 
   if (gSettings.GeneratePStates || gSettings.GeneratePluginType) {

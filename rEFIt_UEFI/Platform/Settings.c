@@ -5484,6 +5484,8 @@ GetUserSettings(
 
             // Get memory size
             Dict2 = GetProperty (Prop3, "Size");
+            DBG("Module size: %d\n", SlotPtr->ModuleSize);
+            DBG("Module property size: %d\n", (UINT32)GetPropertyInteger (Dict2, SlotPtr->ModuleSize) );
             SlotPtr->ModuleSize = (UINT32)GetPropertyInteger (Dict2, SlotPtr->ModuleSize);
             // Get memory frequency
             Dict2 = GetProperty (Prop3, "Frequency");

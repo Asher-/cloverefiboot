@@ -397,16 +397,25 @@ UINT16 getDDRspeedMhz(UINT8 * spd)
   UINT16 xmpFrequency1 = 0, xmpFrequency2 = 0;
   UINT8 xmpVersion = 0;
   UINT8 xmpProfiles = 0;
+  
+  DBG("Getting Default RAM details.\n");
 
   if (spd[SPD_MEMORY_TYPE] == SPD_MEMORY_TYPE_SDRAM_DDR4) {
+
+    DBG("SPD reports DDR4.\n");
+
     UINT16 mincycle = spd[18];
     INT8 fineadjust = spd[125];
     frequency = (UINT16)(2000000 / (mincycle * 125 + fineadjust));
+    DBG("SPD reports frequency %d.\n", frequency);
 
     // Check if module supports XMP
     if ((spd[SPD_XMP20_SIG1] == SPD_XMP_SIG1_VALUE) &&
         (spd[SPD_XMP20_SIG2] == SPD_XMP_SIG2_VALUE)) {
-      xmpVersion = spd[SPD_XMP20_VERSION];
+      
+      DBG("Module supports XMP.\n");
+      
+      xmpVersion  = spd[SPD_XMP20_VERSION];
       xmpProfiles = spd[SPD_XMP20_PROFILES] & 3;
 
       if ((xmpProfiles & 1) == 1) {
@@ -423,6 +432,7 @@ UINT16 getDDRspeedMhz(UINT8 * spd)
         xmpFrequency2 = (UINT16)(2000000 / (mincycle * 125 + fineadjust));
         DBG("XMP Profile2: %d*125 %d ns\n", mincycle, fineadjust);
       }
+      DBG("XMP Profile not 1 or 2.\n");
     }
   } else if (spd[SPD_MEMORY_TYPE] == SPD_MEMORY_TYPE_SDRAM_DDR3) {
     // This should be multiples of MTB converted to MHz- apianti
@@ -684,9 +694,18 @@ STATIC VOID read_smb(EFI_PCI_IO_PROTOCOL *PciIo, UINT16	vid, UINT16	did)
   for (i = 0; i <  TotalSlotsCount; i++){
     //<==
     ZeroMem(spdbuf, MAX_SPD_SIZE);
+
     READ_SPD(spdbuf, base, i, SPD_MEMORY_TYPE);
+
+    DBG("SPD buffer head: %d\n", *spdbuf );
+    DBG("SPD buffer 0x00: %d\n", spdbuf[0x00] );
+    DBG("SPD buffer 0x01: %d\n", spdbuf[0x01] );
+    DBG("SPD buffer 0x02: %d\n", spdbuf[0x02] );
+    DBG("SPD buffer 0x03: %d\n", spdbuf[0x03] );
+    DBG("SPD buffer 0x04: %d\n", spdbuf[0x04] );
+    
     if (spdbuf[SPD_MEMORY_TYPE] == 0xFF) {
-      //DBG("SPD[%d]: Empty\n", i);
+      DBG("SPD[%d]: Empty\n", i);
       continue;
     }
     else if (spdbuf[SPD_MEMORY_TYPE] == 0) {
@@ -700,6 +719,7 @@ STATIC VOID read_smb(EFI_PCI_IO_PROTOCOL *PciIo, UINT16	vid, UINT16	did)
     DBG("SPD[%d]: Type %d @0x%x\n", i, spdbuf[SPD_MEMORY_TYPE], 0x50 + i);
     switch (spdbuf[SPD_MEMORY_TYPE])  {
       case SPD_MEMORY_TYPE_SDRAM_DDR:
+        DBG("Initializing SPD for DDR.\n");
         init_spd(spd_indexes_ddr, spdbuf, base, i);
 
         gRAM.SPD[i].Type = MemoryTypeDdr;
@@ -710,6 +730,7 @@ STATIC VOID read_smb(EFI_PCI_IO_PROTOCOL *PciIo, UINT16	vid, UINT16	did)
         break;
 
       case SPD_MEMORY_TYPE_SDRAM_DDR2:
+        DBG("Initializing SPD for DDR2.\n");
         init_spd(spd_indexes_ddr, spdbuf, base, i);
 
         gRAM.SPD[i].Type = MemoryTypeDdr2;
@@ -720,6 +741,7 @@ STATIC VOID read_smb(EFI_PCI_IO_PROTOCOL *PciIo, UINT16	vid, UINT16	did)
         break;
 
       case SPD_MEMORY_TYPE_SDRAM_DDR3:
+        DBG("Initializing SPD for DDR4.\n");
         init_spd(spd_indexes_ddr3, spdbuf, base, i);
 
         gRAM.SPD[i].Type = MemoryTypeDdr3;
@@ -730,77 +752,70 @@ STATIC VOID read_smb(EFI_PCI_IO_PROTOCOL *PciIo, UINT16	vid, UINT16	did)
         break;
 
       case SPD_MEMORY_TYPE_SDRAM_DDR4:
+      {
+        DBG("Initializing SPD for DDR4.\n");
+
         init_spd(spd_indexes_ddr4, spdbuf, base, i);
-
         gRAM.SPD[i].Type = MemoryTypeDdr4;
-
-        gRAM.SPD[i].ModuleSize
-        = (1 << ((spdbuf[4] & 0x0f) + 8 /* Mb */ - 3 /* MB */)) // SDRAM Capacity
-        * (1 << ((spdbuf[13] & 0x07) + 3)) // Primary Bus Width
-        / (1 << ((spdbuf[12] & 0x07) + 2)) // SDRAM Width
-        * (((spdbuf[12] >> 3) & 0x07) + 1) // Logical Ranks per DIMM
-        * (((spdbuf[6] & 0x03) == 2) ? (((spdbuf[6] >> 4) & 0x07) + 1) : 1);
-
+        
         /*
-         Total = SDRAM Capacity / 8 * Primary Bus Width / SDRAM Width * Logical Ranks per DIMM
-         where:
-         : SDRAM Capacity = SPD byte 4 bits 3~0
-         : Primary Bus Width = SPD byte 13 bits 2~0
-         : SDRAM Width = SPD byte 12 bits 2~0
-         : Logical Ranks per DIMM =
-         for SDP, DDP, QDP: = SPD byte 12 bits 5~3
-         for 3DS: = SPD byte 12 bits 5~3
-         times SPD byte 6 bits 6~4 (Die Count)
+            For SPD memory buffer bit details see (2018-04-18):
+            http://www.softnology.biz/pdf/4_01_02_AnnexL-R25_SPD_for_DDR4_SDRAM_Release_3_Sep2015.pdf
 
-         SDRAM Capacity
+            Total = SDRAM Capacity / 8 * Primary Bus Width / SDRAM Width * Logical Ranks per DIMM
+            where:
+            : SDRAM Capacity = SPD byte 4 bits 3~0
+            : Primary Bus Width = SPD byte 13 bits 2~0
+            : SDRAM Width = SPD byte 12 bits 2~0
+            : Logical Ranks per DIMM =
+            for SDP, DDP, QDP: = SPD byte 12 bits 5~3
+            for 3DS: = SPD byte 12 bits 5~3
+            times SPD byte 6 bits 6~4 (Die Count)
 
-         0	0000 = 256 Mb
-         1	0001 = 512 Mb
-         2	0010 = 1 Gb
-         3	0011 = 2 Gb
-         4	0100 = 4 Gb
-         5	0101 = 8 Gb
-         6	0110 = 16 Gb
-         7	0111 = 32 Gb
+        */
+        
+        DBG("Calculating DIMM details for DDR4 from SPD:\n");
 
+        UINT8   modules_width_bits = spdbuf[12] & 0x07; // 12[2~0]
+        UINT8   modules_wide       = 0;
+        switch ( modules_width_bits ) {
+          case 0x00:
+            modules_wide = 4;
+          case 0x01:
+            modules_wide = 32;
+          case 0x02:
+            modules_wide = 8;
+          case 0x03:
+            modules_wide = 32;
+          default:
+            DBG("SPD bits describing module width do not comply with DDR4 standard!\n");
+            break;
+        }
+        DBG("\tModules Wide: %d\n", modules_wide);
 
-         Primary Bus Width
+        UINT8   module_die_count_power  = spdbuf[6] == 0x70; //  6[6~4]
+        UINT8   module_die_count        = 1 << module_die_count_power;
+        DBG("\tModule Die Count Power: %d\n", module_die_count_power);
+        DBG("\tModule Die Count: %d\n", module_die_count);
 
-         000 = 8 bits
-         001 = 16 bits
-         010 = 32 bits
-         011 = 64 bits
+        UINT8   modules_deep_per_die    = spdbuf[12] & 0x38; // 12[5~3]
+        UINT8   modules_deep            = modules_deep_per_die * module_die_count;
+        DBG("\tModules Deep Per Die: %d\n", modules_deep_per_die);
+        DBG("\tModules Deep: %d\n", modules_deep);
 
+        UINT8   module_capacity_gbits   = spdbuf[4]  & 0x0f; //  4[3~0]
+        UINT8   module_capacity_gbytes  = module_capacity_gbits / 8;
+        DBG("\tModule Capacity (GB): %dMB\n", module_capacity_gbytes);
 
-         SDRAM Device Width
+        UINT8   module_pbus_width_bits  = spdbuf[13] & 0x03; // 13[2~0]
+        DBG("\tModule Primary Bus Width (b): %db\n", module_pbus_width_bits);
 
-         000 = 4 bits
-         001 = 8 bits
-         010 = 16 bits
-         011 = 32 bits
-
-
-         Logical Ranks per DIMM for SDP, DDP, QDP
-
-         000 = 1 Package Rank
-         001 = 2 Package Ranks
-         010 = 3 Package Ranks
-         011 = 4 Package Ranks
-
-
-         Die Count for 3DS
-
-         000 = Single die 001 = 2 die
-         010 = 3 die
-         011 = 4 die
-         100 = 5 die
-         101 = 6 die
-         110 = 7 die
-         111 = 8 die
-         */
-        break;
+        UINT8   total_capacity_gbytes   = ( ( module_capacity_gbytes * module_pbus_width_bits ) / modules_wide ) * modules_deep;
+        DBG("\tTotal Capacity (GB): %dMB\n", total_capacity_gbytes);
+      } break;
 
       default:
+        DBG("Unknown memory module!\n");
         gRAM.SPD[i].ModuleSize = 0;
         break;
     }
