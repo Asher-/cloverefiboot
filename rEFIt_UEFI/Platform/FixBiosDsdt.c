@@ -836,7 +836,7 @@ VOID CheckHardware()
 
 UINT8 slash[] = {0x5c, 0};
 
-VOID InsertScore(UINT8* dsdt, UINT32 off2, INTN root)
+VOID InsertSocket(UINT8* dsdt, UINT32 off2, INTN root)
 {
   UINT8  NumNames = 0;
   UINT32 ind = 0, i;
@@ -869,14 +869,14 @@ VOID InsertScore(UINT8* dsdt, UINT32 off2, INTN root)
 
   i = 0;
   while (i < 127) {
-    buf[ind++] = acpi_cpu_score[i];
-    if (acpi_cpu_score[i] == 0) {
+    buf[ind++] = gAcpiCPUSocket[i];
+    if (gAcpiCPUSocket[i] == 0) {
       break;
     }
     i++;
   }
-  CopyMem(acpi_cpu_score, buf, ind);
-  acpi_cpu_score[ind] = 0;
+  CopyMem(gAcpiCPUSocket, buf, ind);
+  gAcpiCPUSocket[ind] = 0;
 }
 
 VOID findCPU(UINT8* dsdt, UINT32 length)
@@ -886,11 +886,11 @@ VOID findCPU(UINT8* dsdt, UINT32 length)
   BOOLEAN SBFound = FALSE;
   UINT32  off2, j1;
 
-  if (acpi_cpu_score) {
-    FreePool(acpi_cpu_score);
+  if (gAcpiCPUSocket) {
+    FreePool(gAcpiCPUSocket);
   }
-  acpi_cpu_score = AllocateZeroPool(128);
-	acpi_cpu_count = 0;
+  gAcpiCPUSocket = AllocateZeroPool(128);
+
 //  5B 83 41 0C 5C 2E 5F 50 52 5F 43 50 55 30 01 10
 //  10 00 00 06
 
@@ -929,31 +929,36 @@ VOID findCPU(UINT8* dsdt, UINT32 length)
       Name (_PXM, Zero)  // _PXM: Device Proximity
 */
 
-	for (i = 0; i < length - 20; i++) {
+	for (i = 0; i < length - 20; ++i) {
 		if (dsdt[i] == 0x5B && dsdt[i + 1] == 0x83) { // ProcessorOP
+      DBG("Matched %c%c\n", 0x5B, 0x83 );
 			UINT32 j;
 			UINT32 offset = i + 3 + (dsdt[i + 2] >> 6);	// name
 			BOOLEAN add_name = TRUE;
-      if (acpi_cpu_count == 0) {         //only first time in the cycle
+      if (gLogicalCPUCount == 0) {         //only first time in the cycle
         CHAR8 c1 = dsdt[offset + 1];
+        DBG("Next1: %c\n", dsdt[offset + 1] );
         // I want to determine a scope of PR
         //1. if name begin with \\ this is with score
         //2. else find outer device or scope until \\ is found
         //3. add new name everytime is found
-        DBG("first CPU found at %x offset %x\n", i, offset);
+        DBG("DSDT processor scope \\_PR found at %x offset %x\n", i, offset);
 
         if (dsdt[offset] == '\\') {
+          DBG("Next2: %c\n", dsdt[offset] );
           // "\_PR.CPU0"
           j = 1;
-          if (c1 == 0x2E) {
+          if (c1 == 0x2E) { // '.'
             j = 2;
-          } else if (c1 == 0x2F) {
+          } else if (c1 == 0x2F) { // '/'
             c1 = dsdt[offset + 2];
+            DBG("Next3: %c\n", dsdt[offset + 2] );
             j = 2 + (c1 - 2) * 4;
           }
-          CopyMem(acpi_cpu_score, dsdt + offset + j, 4);
+          CopyMem(gAcpiCPUSocket, dsdt + offset + j, 4);
           DBG("slash found\n");
-        } else {
+        }
+        else {
 //--------
           j = i - 1; //usually adr = &5B - 1 = sizefield - 3
           while (j > 0x24) {  //find devices that previous to adr
@@ -961,35 +966,42 @@ VOID findCPU(UINT8* dsdt, UINT32 length)
             k = j + 2;
             if ((dsdt[j] == 0x5B) && (dsdt[j + 1] == 0x82) &&
                 !CmpNum(dsdt, j, TRUE)) { //device candidate
-              DBG("device candidate at %x\n", j);
+              DBG("Next4: %c%c\n", 0x5B, 0x82 );
+
+              DBG("Device candidate at %x\n", j);
               size = get_size(dsdt, k);
               if (size) {
                 if (k + size > i + 3) {  //Yes - it is outer
                   off2 = j + 3 + (dsdt[j + 2] >> 6);
                   if (dsdt[off2] == '\\') {
-                    // "\_SB.SCL0"
-                    InsertScore(dsdt, off2, 1);
-                    DBG("acpi_cpu_score calculated as %a\n", acpi_cpu_score);
+                    DBG("Next5: %c\n", dsdt[off2] );
+                    // "\_SB.SCK0"
+                    InsertSocket(dsdt, off2, 1);
+                    DBG("gAcpiCPUSocket calculated as %a\n", gAcpiCPUSocket);
                     break;
                   } else {
-                    InsertScore(dsdt, off2, 0);
-                    DBG("device inserted in acpi_cpu_score %a\n", acpi_cpu_score);
+                    InsertSocket(dsdt, off2, 0);
                   }
                 }  //else not an outer device
               } //else wrong size field - not a device
             } //else not a device
+            
             // check scope
             // a problem 45 43 4F 4E 08   10 84 10 05 5F 53 42 5F
+            
             SBSIZE = 0;
             if ((dsdt[j] == '_' && dsdt[j + 1] == 'S' &&
                  dsdt[j + 2] == 'B' && dsdt[j + 3] == '_') ||
                 (dsdt[j] == '_' && dsdt[j + 1] == 'P' &&
                  dsdt[j + 2] == 'R' && dsdt[j + 3] == '_')) {
-              DBG("score candidate at %x\n", j);
+              DBG("Next6: %c%c%c%c\n", dsdt[j], dsdt[j + 1], dsdt[j + 2], dsdt[j + 3] );
+
+              DBG("Logical CPU candidate at %x\n", j);
               for (j1=0; j1 < 10; j1++) {
                 if (dsdt[j - j1] != 0x10) {
                   continue;
                 }
+                DBG("Next7: %c\n", 0x10 );
                 if (!CmpNum(dsdt, j - j1, TRUE)) {
                   SBADR = j - j1 + 1;
                   SBSIZE = get_size(dsdt, SBADR);
@@ -1006,8 +1018,8 @@ VOID findCPU(UINT8* dsdt, UINT32 length)
               }
             } //else not a scope
             if (SBFound) {
-              InsertScore(dsdt, j, 0);
-              DBG("score inserted in acpi_cpu_score %a\n", acpi_cpu_score);
+              InsertSocket(dsdt, j, 0);
+              DBG("Physical CPU socket inserted at gAcpiCPUSocket %a\n", gAcpiCPUSocket);
               break;
             }
             j = k - 3;    //if found then search again from found
@@ -1020,14 +1032,17 @@ VOID findCPU(UINT8* dsdt, UINT32 length)
 			for (j = 0; j < 4; j++) {
 				CHAR8 c = dsdt[offset + j];
         CHAR8 c1 = dsdt[offset + j + 1];
+        DBG("Next8: %c%c\n", dsdt[offset + j], dsdt[offset + j + 1] );
 				if(c == '\\') {
 				  offset += 5;
           if (c1 == 0x2E) {
             offset++;
           } else if (c1 == 0x2F) {
             c1 = dsdt[offset + j + 2];
+        DBG("Next9: %c\n", dsdt[offset + j + 2] );
             offset += 2 + (c1 - 2) * 4;
           }
+          DBG("Next10: %c%c\n", c, c1);
 				  c = dsdt[offset + j];
 				}
 
@@ -1039,31 +1054,30 @@ VOID findCPU(UINT8* dsdt, UINT32 length)
 			}
 
 			if (add_name) {
-				acpi_cpu_name[acpi_cpu_count] = AllocateZeroPool(5);
-				CopyMem(acpi_cpu_name[acpi_cpu_count], dsdt+offset, 4);
+				gAcpiCPUName[gLogicalCPUCount] = AllocateZeroPool(5);
+				CopyMem(gAcpiCPUName[gLogicalCPUCount], dsdt+offset, 4);
 				i = offset + 5;
 
-                //if (acpi_cpu_count == 0)
+                //if (gLogicalCPUCount == 0)
                 //    acpi_cpu_p_blk = dsdt[i] | (dsdt[i+1] << 8);
 
-				if (acpi_cpu_count == 0) {
-				    DBG("Found ACPI CPU: %a ", acpi_cpu_name[acpi_cpu_count]);
-				} else {
-				    DBG("| %a ", acpi_cpu_name[acpi_cpu_count]);
-				}
-				if (++acpi_cpu_count == 32)
-				    break;
+        DBG("| Logical CPU %a \n", gAcpiCPUName[gLogicalCPUCount]);
+        
+				if (++gLogicalCPUCount == CPUID_MAX) {
+          DBG("Found max logical CPUs (%d). Ending DSDT search.\n", CPUID_MAX);
+          break;
+        }
 			}
 		}
 	}
-  DBG(", within the score: %a\n", acpi_cpu_score);
 
-  if (!acpi_cpu_count) {
-    for (i=0; i<15; i++) {
-      acpi_cpu_name[i] = AllocateZeroPool(5);
-      AsciiSPrint(acpi_cpu_name[i], 5, "CPU%1x", i);
-    }
-  }
+  //  This should probably be removed and handled by Apic resolution - Asher.
+//  if (!gLogicalCPUCount) {
+//    for (i=0; i<CPUID_MAX; i++) {
+//      gAcpiCPUName[i] = AllocateZeroPool(5);
+//      AsciiSPrint(gAcpiCPUName[i], 5, "CPU%1x", i);
+//    }
+//  }
 	return;
 }
 
@@ -5144,7 +5158,7 @@ VOID FixMutex(UINT8 *dsdt, UINT32 len)
 }
 
 
-VOID FixBiosDsdt (UINT8* temp, EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE* fadt, CHAR8 *OSVersion)
+VOID FixgBiosDsdt (UINT8* temp, EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE* fadt, CHAR8 *OSVersion)
 {
   UINT32 DsdtLen;
   if (!temp) {
@@ -5163,7 +5177,7 @@ VOID FixBiosDsdt (UINT8* temp, EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE* fadt, 
   }
 
 //  DBG("========= Auto patch DSDT Starting ========\n");
-  DbgHeader("FixBiosDsdt");
+  DbgHeader("FixgBiosDsdt");
 
   // First check hardware address: GetPciADR(DevicePath, &NetworkADR1, &NetworkADR2);
   CheckHardware();
@@ -5405,7 +5419,7 @@ VOID FixBiosDsdt (UINT8* temp, EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE* fadt, 
   temp[7] = (UINT8)((DsdtLen & 0xFF000000) >> 24);
 
   CopyMem((UINT8*)((EFI_ACPI_DESCRIPTION_HEADER*)temp)->OemId, (UINT8*)BiosVendor, 6);
-  //DBG("orgBiosDsdtLen = 0x%08x\n", orgBiosDsdtLen);
+  //DBG("orgggBiosDsdtLen = 0x%08x\n", orgggBiosDsdtLen);
   ((EFI_ACPI_DESCRIPTION_HEADER*)temp)->Checksum = 0;
   ((EFI_ACPI_DESCRIPTION_HEADER*)temp)->Checksum = (UINT8)(256-Checksum8(temp, DsdtLen));
   */

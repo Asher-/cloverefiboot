@@ -441,20 +441,108 @@ MSR C001006B  0000-0000-0000-0000
 
 
 /* CPUID Index */
-#define CPUID_0    0
-#define CPUID_1    1
-#define CPUID_2    2
-#define CPUID_3    3
-#define CPUID_4    4
-#define CPUID_5    5
-#define CPUID_6    6
-#define CPUID_80   7
-#define CPUID_81   8
-#define CPUID_87   9
-#define CPUID_88   10
-#define CPUID_81E  11
-#define CPUID_15   15
-#define CPUID_MAX  16
+enum {
+
+  CPUID_00,
+  CPUID_01,
+  CPUID_02,
+  CPUID_03,
+  CPUID_04,
+  CPUID_05,
+  CPUID_06,
+  CPUID_07,
+  CPUID_08,
+  CPUID_09,
+  CPUID_0A,
+  CPUID_0B,
+  CPUID_0C,
+  CPUID_0D,
+  CPUID_0E,
+  CPUID_0F,
+  CPUID_10,
+  CPUID_11,
+  CPUID_12,
+  CPUID_13,
+  CPUID_14,
+  CPUID_15,
+  CPUID_16,
+  CPUID_17,
+  CPUID_18,
+  CPUID_19,
+  CPUID_1A,
+  CPUID_1B,
+  CPUID_1C,
+  CPUID_1D,
+  CPUID_1E,
+  CPUID_1F,
+  CPUID_20,
+  CPUID_21,
+  CPUID_22,
+  CPUID_23,
+  CPUID_24,
+  CPUID_25,
+  CPUID_26,
+  CPUID_27,
+  CPUID_28,
+  CPUID_29,
+  CPUID_2A,
+  CPUID_2B,
+  CPUID_2C,
+  CPUID_2D,
+  CPUID_2E,
+  CPUID_2F,
+  CPUID_30,
+  CPUID_31,
+  CPUID_32,
+  CPUID_33,
+  CPUID_34,
+  CPUID_35,
+  CPUID_36,
+  CPUID_37,
+  CPUID_38,
+  CPUID_39,
+  CPUID_3A,
+  CPUID_3B,
+  CPUID_3C,
+  CPUID_3D,
+  CPUID_3E,
+  CPUID_3F,
+  CPUID_40,
+  CPUID_41,
+  CPUID_42,
+  CPUID_43,
+  CPUID_44,
+  CPUID_45,
+  CPUID_46,
+  CPUID_47,
+  CPUID_48,
+  CPUID_49,
+  CPUID_4A,
+  CPUID_4B,
+  CPUID_4C,
+  CPUID_4D,
+  CPUID_4E,
+  CPUID_4F,
+  CPUID_50,
+  CPUID_51,
+  CPUID_52,
+  CPUID_53,
+  CPUID_54,
+  CPUID_55,
+  CPUID_56,
+  CPUID_57,
+  CPUID_58,
+  CPUID_59,
+  CPUID_5A,
+  CPUID_5B,
+  CPUID_5C,
+  CPUID_5D,
+  CPUID_5E,
+  CPUID_5F,
+
+  CPUID_MAX
+
+} CPUID;
 
 /* CPU Cache */
 #define MAX_CACHE_COUNT  4
@@ -1588,7 +1676,7 @@ extern INPUT_ITEM                     *InputItems;
 extern BOOLEAN                        SavePreBootLog;
 extern CHAR8                          *BootOSName;
 //extern EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput;
-extern UINT64                    machineSignature;
+extern UINT64                    gMachineSignature;
 
 extern EFI_GUID                        gEfiAppleBootGuid;
 extern EFI_GUID                        gEfiAppleNvramGuid;
@@ -1614,12 +1702,13 @@ extern UINTN                           gItemID;
 extern INTN                            OldChosenTheme;
 extern INTN                            OldChosenConfig;
 
-//CHAR8*   orgBiosDsdt;
-extern UINT64                          BiosDsdt;
-extern UINT32                          BiosDsdtLen;
-extern UINT8                           acpi_cpu_count;
-extern CHAR8                           *acpi_cpu_name[];
-extern CHAR8                           *acpi_cpu_score;
+//CHAR8*   orggBiosDsdt;
+extern UINT64                          gBiosDsdt;
+extern UINT32                          ggBiosDsdtLen;
+extern UINT8                           gLogicalCPUCount;
+extern UINT8                           gPhysicalCPUCount;
+extern CHAR8                           *gAcpiCPUName[];
+extern CHAR8                           *gAcpiCPUSocket;
 extern BOOLEAN                         SSSE3;
 extern BOOLEAN                         defDSM;
 extern UINT16                          dropDSM;
@@ -1646,7 +1735,7 @@ extern BOOLEAN                        gRemapSmBiosIsRequire;  // syscl: pass arg
 //-----------------------------------
 
 VOID
-FixBiosDsdt (
+FixgBiosDsdt (
   UINT8                                     *Dsdt,
   EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE *fadt,
   CHAR8                                     *OSVersion

@@ -1215,6 +1215,9 @@ VOID GetTableType17()
     }
     // Determine if slot has size
     if (SmbiosTable.Type17->Size > 0) {
+      DBG("Slot has size %d.\n", SmbiosTable.Type17->Size);
+      DBG("Slot has data width %d.\n", SmbiosTable.Type17->DataWidth);
+      DBG("Slot has total width %d.\n", SmbiosTable.Type17->TotalWidth);
       gRAM.SMBIOS[Index].InUse = TRUE;
       gRAM.SMBIOS[Index].ModuleSize = SmbiosTable.Type17->Size;
     }
@@ -1225,7 +1228,7 @@ VOID GetTableType17()
       if (SmbiosTable.Type17->Speed > gRAM.Frequency) {
       	gRAM.Frequency = SmbiosTable.Type17->Speed;
       }
-    } else {
+    } else if (SmbiosTable.Type17->Speed) {
       DBG("Ignoring insane frequency value %dMHz\n", SmbiosTable.Type17->Speed);
     }
     // Fill rest of information if in use
@@ -1450,6 +1453,9 @@ VOID PatchTableType17()
     channels = gRAM.UserChannels;
   } else if (gRAM.SPDInUse == 0) {
     if (trustSMBIOS) {
+      if (wrongSMBIOSBanks) {
+        DBG("SMBIOS RAM description mismatch. Correcting:\n");
+      }
       if ((gRAM.SMBIOSInUse % 4) == 0) {
         // Quadruple channel
         if ((wrongSMBIOSBanks &&
@@ -1506,6 +1512,10 @@ VOID PatchTableType17()
              ((gRAM.SPDInUse % 2) != 0)) {
      channels = 1;
   }
+  if (wrongSMBIOSBanks) {
+    DBG("Channels corrected to %d\n", channels);
+  }
+  
   // Can't have less than the number of channels
   if (expectedCount < channels) {
     expectedCount = channels;
@@ -1514,6 +1524,7 @@ VOID PatchTableType17()
      --expectedCount;
   }
   DBG("Channels: %d\n", channels);
+  
   // Setup interleaved channel map
   if (channels >= 2) {
     UINT8 doubleChannels = (UINT8)channels << 1;
@@ -1985,6 +1996,7 @@ EFI_STATUS PrepatchSmbios()
 	GetTableType3();
 	GetTableType4();
 	GetTableType16();
+  DBG("Getting Smbios Table 17.\n");
 	GetTableType17();
 	GetTableType32(); //get BootStatus here to decide what to do
 	MsgLog("Boot status=%x\n", gBootStatus);
