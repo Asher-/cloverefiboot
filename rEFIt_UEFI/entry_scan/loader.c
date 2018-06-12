@@ -943,6 +943,14 @@ STATIC BOOLEAN AddLoaderEntry(IN CHAR16 *LoaderPath, IN CHAR16 *LoaderOptions,
   }
 
   DBG("        AddLoaderEntry for Volume Name=%s\n", Volume->VolName);
+  if (OSFLAG_ISSET(Flags, OSFLAG_DISABLED)) {
+    DBG("        skipped because entry is disabled\n");
+    return FALSE;
+  }
+  if (!gSettings.ShowHiddenEntries && OSFLAG_ISSET(Flags, OSFLAG_HIDDEN)) {
+    DBG("        skipped because entry is hidden\n");
+    return FALSE;
+  }
   //don't add hided entries
   if (!gSettings.ShowHiddenEntries) {
     for (HVi = 0; HVi < gSettings.HVCount; HVi++) {
@@ -1427,13 +1435,13 @@ VOID ScanLoader(VOID)
       AddLoaderEntry(BOOT_LOADER_PATH, L"", L"UEFI optical", Volume, NULL, OSTYPE_OTHER, 0);
     }
     //     DBG("search for internal UEFI\n");
-//    if (Volume->DiskKind == DISK_KIND_INTERNAL) {
-//      AddLoaderEntry(BOOT_LOADER_PATH, L"", L"UEFI internal", Volume, NULL, OSTYPE_OTHER, 0);
-//    }
+    if (Volume->DiskKind == DISK_KIND_INTERNAL) {
+      AddLoaderEntry(BOOT_LOADER_PATH, L"", L"UEFI internal", Volume, NULL, OSTYPE_OTHER, OSFLAG_HIDDEN);
+    }
     //    DBG("search for external UEFI\n");
-//    if (Volume->DiskKind == DISK_KIND_EXTERNAL) {
-//      AddLoaderEntry(BOOT_LOADER_PATH, L"", L"UEFI external", Volume, NULL, OSTYPE_OTHER, 0);
-//    }
+    if (Volume->DiskKind == DISK_KIND_EXTERNAL) {
+      AddLoaderEntry(BOOT_LOADER_PATH, L"", L"UEFI external", Volume, NULL, OSTYPE_OTHER, OSFLAG_HIDDEN);
+    }
   }
 
 }

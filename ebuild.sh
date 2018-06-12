@@ -34,7 +34,7 @@ M_NOGRUB=0
 M_APPLEHFS=0
 
 # Default values
-export TOOLCHAIN=XCODE5
+export TOOLCHAIN=XCODE8
 export TARGETARCH=X64
 export BUILDTARGET=RELEASE
 export BUILDTHREADS=$(( NUMBER_OF_CPUS + 1 ))
@@ -129,7 +129,7 @@ checkPatch() {
     export GCC53_BIN="$TOOLCHAIN_DIR/cross/bin/x86_64-clover-linux-gnu-"
     if [[ $TOOLCHAIN == GCC* ]] && [[ ! -x "${GCC53_BIN}gcc" ]]; then
       echo "No clover toolchain found !" >&2
-      echo "Build it with the buid_gcc6.sh script or define the TOOLCHAIN_DIR variable." >&2
+      echo "Build it with the build_gcc8.sh script or define the TOOLCHAIN_DIR variable." >&2
       exit 1
     fi
   fi
@@ -139,7 +139,7 @@ checkPatch() {
 #  if [[ ! -x "$TOOLCHAIN_DIR"/bin/nasm ]]; then
 #      echo "No nasm binary found in toolchain directory !" >&2
 #      if [[ "$SYSNAME" != Linux ]]; then
-#        echo "Build it with the buidnasm.sh script." >&2
+#        echo "Build it with the buildnasm.sh script." >&2
 #      fi
 #      exit 1
 #  fi
@@ -609,7 +609,7 @@ MainBuildScript() {
         exit $?
 
     elif [[ "$TARGETRULE" == clean || "$TARGETRULE" == cleanall ]]; then
-        build -p $PLATFORMFILE -a $TARGETARCH -b $BUILDTARGET \
+        build --quiet -p $PLATFORMFILE -a $TARGETARCH -b $BUILDTARGET \
          -t $TOOLCHAIN -n $BUILDTHREADS $TARGETRULE
         [[ "$TARGETRULE" == cleanall ]] && make -C $WORKSPACE/BaseTools clean
         exit $?
@@ -891,14 +891,14 @@ MainPostBuildScript() {
       # Mandatory drivers
       echo "Copy Mandatory drivers:"
 #copyBin "$BUILD_DIR_ARCH"/FSInject.efi "$CLOVER_PKG_DIR"/EFI/CLOVER/drivers64/FSInject-64.efi
-      binArray=( FSInject AppleImageCodec AppleUITheme AppleKeyAggregator FirmwareVolume SMCHelper )
+      binArray=( FSInject AppleImageCodec AppleUITheme AppleKeyAggregator FirmwareVolume SMCHelper)
       for efi in "${binArray[@]}"
       do
         copyBin "$BUILD_DIR_ARCH"/$efi.efi "$CLOVER_PKG_DIR"/EFI/CLOVER/drivers64/$efi-64.efi
       done
 
 
-      binArray=( FSInject AppleImageCodec AppleUITheme AppleKeyAggregator FirmwareVolume SMCHelper DataHubDxe )
+      binArray=( FSInject AppleImageCodec AppleUITheme AppleKeyAggregator FirmwareVolume DataHubDxe SMCHelper)
       for efi in "${binArray[@]}"
       do
         copyBin "$BUILD_DIR_ARCH"/$efi.efi "$CLOVER_PKG_DIR"/EFI/CLOVER/drivers64UEFI/$efi-64.efi
@@ -912,17 +912,17 @@ MainPostBuildScript() {
       fi
 
       # Optional drivers
-      echo "Copy Optional drivers:"
+#echo "Copy Optional drivers:"
       # drivers64
       # Ps2KeyboardDxe Ps2MouseAbsolutePointerDxe
-      binArray=( NvmExpressDxe Ps2MouseDxe VBoxExt2 VBoxExt4 VBoxIso9600 XhciDxe HashServiceFix)
-      for efi in "${binArray[@]}"
-      do
-        copyBin "$BUILD_DIR_ARCH"/$efi.efi "$CLOVER_PKG_DIR"/drivers-Off/drivers64/$efi-64.efi
-      done
+#binArray=( )
+#for efi in "${binArray[@]}"
+#do
+#copyBin "$BUILD_DIR_ARCH"/$efi.efi "$CLOVER_PKG_DIR"/drivers-Off/drivers64/$efi-64.efi
+#done
 
       if [[ $M_NOGRUB -eq 0 ]]; then
-        binArray=( GrubEXFAT GrubISO9660 GrubNTFS GrubUDF )
+        binArray=( GrubEXFAT GrubISO9660 GrubNTFS GrubUDF XhciDxe)
         for efi in "${binArray[@]}"
         do
           copyBin "$BUILD_DIR_ARCH"/$efi.efi "$CLOVER_PKG_DIR"/drivers-Off/drivers64/$efi-64.efi
@@ -930,7 +930,7 @@ MainPostBuildScript() {
       fi
 
       # drivers64UEFI      
-      binArray=( CsmVideoDxe EmuVariableUefi OsxAptioFix3Drv OsxAptioFix2Drv OsxAptioFixDrv OsxFatBinaryDrv OsxLowMemFixDrv PartitionDxe UsbMouseDxe  UsbKbDxe Fat )
+      binArray=( CsmVideoDxe EmuVariableUefi OsxAptioFix3Drv OsxAptioFix2Drv OsxAptioFixDrv OsxFatBinaryDrv OsxLowMemFixDrv PartitionDxe UsbMouseDxe  UsbKbDxe Fat EnglishDxe NvmExpressDxe Ps2MouseDxe VBoxExt2 VBoxExt4 VBoxIso9600 HashServiceFix)
       for efi in "${binArray[@]}"
       do
         copyBin "$BUILD_DIR_ARCH"/$efi.efi "$CLOVER_PKG_DIR"/drivers-Off/drivers64UEFI/$efi-64.efi
@@ -946,6 +946,8 @@ MainPostBuildScript() {
         copyBin "${WORKSPACE}"/ShellBinPkg/MinUefiShell/X64/Shell.efi "$CLOVER_PKG_DIR"/EFI/CLOVER/tools/Shell64U.efi
       elif [[ "${EDK2SHELL:-}" == "FullShell" ]]; then
         copyBin "${WORKSPACE}"/ShellBinPkg/UefiShell/X64/Shell.efi "$CLOVER_PKG_DIR"/EFI/CLOVER/tools/Shell64U.efi
+      elif [[ "${EDK2SHELL:-}" == "Custom" ]]; then
+        "$BUILD_DIR_ARCH"/Shell.efi "$CLOVER_PKG_DIR"/EFI/CLOVER/tools/Shell64U.efi
       fi
     fi
 

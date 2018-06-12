@@ -4,7 +4,7 @@
    It will not work for other bootloaders.
 
     (c) Slice 2013
- 
+
    Code portion from Apple's project nvram
 */
 /*
@@ -29,7 +29,7 @@
  * @APPLE_LICENSE_HEADER_END@
  */
 /*
-cc -o genconfig clover-genconfig.c -framework CoreFoundation -framework IOKit -Wall -Wno-unused-function
+cc -o genconfig clover-genconfig.c gfxutil.c -framework CoreFoundation -framework IOKit -Wall -Wno-unused-function
 */
 
 // EDK2 includes
@@ -46,6 +46,10 @@ cc -o genconfig clover-genconfig.c -framework CoreFoundation -framework IOKit -W
 
 #include <err.h>
 #include <mach/mach_error.h>
+#define GFX 1
+#if GFX
+  #include "gfxutil.h"
+#endif
 
 /*
 #define offsetof(st, m) \
@@ -53,13 +57,16 @@ cc -o genconfig clover-genconfig.c -framework CoreFoundation -framework IOKit -W
 */
 
 // Prototypes
-static kern_return_t GetOFVariable(const char *name, CFTypeRef *valueRef);
+//static kern_return_t GetOFVariable(const char *name, CFTypeRef *valueRef);
 
 // Global Variables
+static io_registry_entry_t gEFI __attribute__((used));
 static io_registry_entry_t gPlatform;
 static mach_port_t         masterPort;
 
+#if 0
 static CFMutableDictionaryRef patchDict[100];
+#endif
 
 CFMutableDictionaryRef addDict(CFMutableDictionaryRef dest, CFStringRef key)
 {
@@ -102,7 +109,7 @@ CFMutableDictionaryRef addDictToArray(CFMutableArrayRef dest)
                                                              0,
                                                              &kCFTypeDictionaryKeyCallBacks,
                                                              &kCFTypeDictionaryValueCallBacks
-                                                             ); 
+                                                             );
   if (!dict) {
     errx(1,"Error can't allocate dictionnary for array");
   }
@@ -173,24 +180,12 @@ void addInteger(CFMutableDictionaryRef dest, CFStringRef key, UInt64 value) {
     CFRelease(valueRef);
 }
 
-/*
-void addUUID(CFMutableDictionaryRef dest, CFStringRef key, EFI_GUID *uuid)
-{
-    assert(dest);
-    CFStringRef strValue = CFStringCreateWithFormat(kCFAllocatorDefault, NULL,
-                                                    CFSTR("%08tX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X"),
-                                                    uuid->Data1, uuid->Data2, uuid->Data3,
-                                                    uuid->Data4[0], uuid->Data4[1],
-                                                    uuid->Data4[2], uuid->Data4[3], uuid->Data4[4], uuid->Data4[5], uuid->Data4[6], uuid->Data4[7]);
-    assert(strValue);
-    CFDictionaryAddValue( dest, key, strValue );
-    CFRelease(strValue);
-}*/
+
 void addUUID(CFMutableDictionaryRef dest, CFStringRef key, UInt8 *uuid)
 {
   SInt64 i = 0;
   CFMutableStringRef strValue = CFStringCreateMutable (kCFAllocatorDefault, 0);
-  
+
   for (i = 0; i < 4; i++) {
     CFStringAppendFormat(strValue, NULL, CFSTR("%02x"), *uuid++);
   }
@@ -250,7 +245,7 @@ void dump_plist(CFMutableDictionaryRef properties) {
 //   Get the named firmware variable.
 //   Return the value in valueRef.
 //
-static kern_return_t GetOFVariable(const char *name, CFTypeRef *valueRef)
+static kern_return_t GetOFVariable(io_registry_entry_t entry, const char *name, CFTypeRef *valueRef)
 {
     CFStringRef nameRef = CFStringCreateWithCString(kCFAllocatorDefault, name,
                                                     kCFStringEncodingUTF8);
@@ -258,7 +253,7 @@ static kern_return_t GetOFVariable(const char *name, CFTypeRef *valueRef)
         errx(1, "Error creating CFString for key %s", name);
     }
 
-    *valueRef = IORegistryEntryCreateCFProperty(gPlatform, nameRef, 0, 0);
+    *valueRef = IORegistryEntryCreateCFProperty(entry, nameRef, 0, 0);
     CFRelease(nameRef);
     if (!*valueRef) {
         printf("value not found\n");
@@ -268,16 +263,108 @@ static kern_return_t GetOFVariable(const char *name, CFTypeRef *valueRef)
     return KERN_SUCCESS;
 }
 
-void PrintConfig(CFTypeRef data)
+void addGFXDictionary(CFMutableDictionaryRef dict, GFX_HEADER * gfx)
+{
+  CFMutableDictionaryRef items;
+  CFDataRef data = NULL;
+  //CFNumberRef number = NULL;
+  CFStringRef string = NULL;
+  CFStringRef key = NULL;
+  GFX_BLOCKHEADER *gfx_blockheader_tmp;
+  GFX_ENTRY *gfx_entry_tmp;
+//  uint64_t bigint;
+//  char hexstr[32];
+  char *dpath;
+  
+  // Create dictionary that will hold gfx data
+//  dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 0 ,&kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+  
+  gfx_blockheader_tmp = gfx->blocks;
+  while(gfx_blockheader_tmp)
+  {
+    items = CFDictionaryCreateMutable(kCFAllocatorDefault, 0 ,&kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    gfx_entry_tmp = gfx_blockheader_tmp->entries;
+    while(gfx_entry_tmp)
+    {
+      key = CFStringCreateWithCString(kCFAllocatorDefault, gfx_entry_tmp->key, kCFStringEncodingUTF8);
+      switch(gfx_entry_tmp->val_type)
+      {
+        case DATA_STRING:
+          string = CFStringCreateWithBytes(kCFAllocatorDefault,gfx_entry_tmp->val, gfx_entry_tmp->val_len-1, kCFStringEncodingASCII, false);
+          CFDictionarySetValue(items, key, string);
+          CFRelease(string);
+          CFRelease(key);
+          break;
+          /*
+        case DATA_INT8:
+          bigint = READ_UINT8(gfx_entry_tmp->val);
+          sprintf(hexstr,"0x%02llx",bigint);
+          string = CFStringCreateWithCString(kCFAllocatorDefault,hexstr, kCFStringEncodingASCII);
+          CFDictionarySetValue(items, key, string);
+          CFRelease(string);
+          CFRelease(key);
+          break;
+        case DATA_INT16:
+          bigint = READ_UINT16(gfx_entry_tmp->val);
+          sprintf(hexstr,"0x%04llx",bigint);
+          string = CFStringCreateWithCString(kCFAllocatorDefault,hexstr, kCFStringEncodingASCII);
+          CFDictionarySetValue(items, key, string);
+          CFRelease(string);
+          CFRelease(key);
+          break;
+        case DATA_INT32:
+          bigint = READ_UINT32(gfx_entry_tmp->val);
+          sprintf(hexstr,"0x%08llx",bigint);
+          string = CFStringCreateWithCString(kCFAllocatorDefault,hexstr, kCFStringEncodingASCII);
+          CFDictionarySetValue(items, key, string);
+          CFRelease(string);
+          CFRelease(key);
+          break;
+           */
+        default:
+        case DATA_BINARY:
+          data = CFDataCreate(kCFAllocatorDefault,gfx_entry_tmp->val, gfx_entry_tmp->val_len);
+          CFDictionarySetValue(items, key, data);
+          CFRelease(data);
+          CFRelease(key);
+          break;
+      }
+      gfx_entry_tmp = gfx_entry_tmp->next;
+    }
+    
+    dpath = ConvertDevicePathToAscii (gfx_blockheader_tmp->devpath, 1, 1);
+    if(dpath != NULL)
+    {
+      key = CFStringCreateWithCString(kCFAllocatorDefault, dpath, kCFStringEncodingUTF8);
+    }
+    else
+    {
+      printf("CreateGFXDictionary: error converting device path to text shorthand notation\n");
+      return;
+    }
+    
+    CFDictionarySetValue(dict, key, items);
+    
+    free(dpath);
+    CFRelease(key);
+    CFRelease(items);
+    gfx_blockheader_tmp = gfx_blockheader_tmp->next;
+  }
+  
+  return;
+}
+
+
+void PrintConfig(CFTypeRef data, GFX_HEADER * gfx)
 {
   const Byte *dataPtr = NULL;
   CFIndex    length = 0;
   CFTypeID   typeID;
 //  int i;
-  
+
   // Get the OF variable's type.
   typeID = CFGetTypeID(data);
-  
+
   if (typeID == CFDataGetTypeID()) {
     length = CFDataGetLength(data);
     if (length == 0)
@@ -288,35 +375,49 @@ void PrintConfig(CFTypeRef data)
     printf("<INVALID> settings\n");
     return;
   }
-  
+
   if (length != sizeof(SETTINGS_DATA)) {
 //    errx(1, "Error the version of clover-genconfig didn't match current booted clover version");
     printf("Error the version of clover-genconfig didn't match current booted clover version\n");
     printf("len=%d sizeof=%d\n", (int)length, (int)sizeof(SETTINGS_DATA));
+#if defined(MDE_CPU_IA32)
+    printf("32 bit generator\n");
+#elif defined(MDE_CPU_X64)
+    printf("64 bit generator\n");
+#else
+    printf("xxx bit generator\n");
+#endif
+    return;
   }
-  
+
   SETTINGS_DATA *s = (SETTINGS_DATA*)dataPtr;
-  
+
   CFMutableDictionaryRef dict = CFDictionaryCreateMutable (
                                                            kCFAllocatorDefault,
                                                            0,
                                                            &kCFTypeDictionaryKeyCallBacks,
                                                            &kCFTypeDictionaryValueCallBacks
                                                            );
+/*
   if (s->ConfigName != NULL) {
-    addUString(dict, CFSTR("ConfigName"), (const UniChar *)&s->ConfigName);
+    //ConfigName allocated in boot memory, impossible to show
+//    addUString(dict, CFSTR("ConfigName"), (const UniChar *)&s->ConfigName);
+    addString(dict, CFSTR("ConfigName"), "config1");
   } else {
     addString(dict, CFSTR("ConfigName"), "config");
   }
-
+*/
+  //This is possible since Clover 4511
+  addUString(dict, CFSTR("ConfigName"), (const UniChar *)&s->ConfigName);
   //Boot
   CFMutableDictionaryRef bootDict = addDict(dict, CFSTR("Boot"));
   addString(bootDict, CFSTR("Arguments"), s->BootArgs);
   addUString(bootDict, CFSTR("Legacy"), (const UniChar *)&s->LegacyBoot);
  // addUString(bootDict, CFSTR("LegacyEntry"), s->LegacyBiosCustomEntry);
   addInteger(bootDict, CFSTR("XMPDetection"), s->XMPDetection);
-  addUString(bootDict, CFSTR("DefaultVolume"), (const UniChar *)&s->DefaultVolume);
-  addUString(bootDict, CFSTR("DefaultLoader"), (const UniChar *)&s->DefaultLoader);
+  //impossible
+//  addUString(bootDict, CFSTR("DefaultVolume"), (const UniChar *)&s->DefaultVolume);
+//  addUString(bootDict, CFSTR("DefaultLoader"), (const UniChar *)&s->DefaultLoader);
   addBoolean(bootDict, CFSTR("Debug"), s->Debug);
   addString(bootDict, CFSTR("#Timeout"), "_NOT_SHOWN_");
   addBoolean(bootDict, CFSTR("Fast"), 0);
@@ -325,12 +426,10 @@ void PrintConfig(CFTypeRef data)
   addBoolean(bootDict, CFSTR("#StrictHibernate"), 0);
   addBoolean(bootDict, CFSTR("RtcHibernateAware"), 0);
   addBoolean(bootDict, CFSTR("NeverDoRecovery"), s->NeverDoRecovery);
-  addBoolean(bootDict, CFSTR("SkipHibernateTimeout"), s->SkipHibernateTimeout);  
-  addBoolean(bootDict, CFSTR("DisableCloverHotkeys"), s->DisableCloverHotkeys);  
+  addBoolean(bootDict, CFSTR("SkipHibernateTimeout"), s->SkipHibernateTimeout);
+  addBoolean(bootDict, CFSTR("DisableCloverHotkeys"), s->DisableCloverHotkeys);
   addInteger(bootDict, CFSTR("#LegacyBiosDefaultEntry"), s->LegacyBiosDefaultEntry);
-  
-  
-  
+
   // SystemParameters
   CFMutableDictionaryRef systemParametersDict = addDict(dict, CFSTR("SystemParameters"));
   addUString(systemParametersDict, CFSTR("CustomUUID"), (const UniChar *)&s->CustomUuid);
@@ -339,7 +438,6 @@ void PrintConfig(CFTypeRef data)
 //  addBoolean(systemParametersDict, CFSTR("InjectKexts"), 0);
   addString(systemParametersDict, CFSTR("#InjectKexts"), "Detect");
   addBoolean(systemParametersDict, CFSTR("NvidiaWeb"), s->NvidiaWeb);
-  
 
   // GUI
   CFMutableDictionaryRef guiDict = addDict(dict, CFSTR("GUI"));
@@ -347,24 +445,24 @@ void PrintConfig(CFTypeRef data)
   addString(guiDict, CFSTR("#Theme"), "embedded");
   addBoolean(guiDict, CFSTR("TextOnly"), 0);
   addBoolean(guiDict, CFSTR("CustomIcons"), 0);
-    
+
   CFMutableDictionaryRef mouseDict = addDict(guiDict, CFSTR("Mouse"));
   addBoolean(mouseDict, CFSTR("Enabled"), s->PointerEnabled);
   addInteger(mouseDict, CFSTR("Speed"), s->PointerSpeed);
 //  addInteger(mouseDict, CFSTR("DoubleClick"), s->DoubleClickTime);
   addBoolean(mouseDict, CFSTR("Mirror"), s->PointerMirror);
-  
+
   CFMutableArrayRef hideArray = addArray(guiDict, CFSTR("#Hide"));
   addStringToArray(hideArray, "VolumeName_NOT_SHOWN");
   addStringToArray(hideArray, "VolumeUUID_NOT_SHOWN");
   addStringToArray(hideArray, "EntryPath_NOT_SHOWN");
-  
+
   CFMutableDictionaryRef scanDict = addDict(guiDict, CFSTR("Scan"));
   addString(scanDict, CFSTR("Comment"), "These values wrong, they present for sample");
   addBoolean(scanDict, CFSTR("#Entries"), 1);
   addBoolean(scanDict, CFSTR("#Tool"), 1);
   addBoolean(scanDict, CFSTR("#Legacy"), 1);
-  
+
   CFMutableDictionaryRef customDict = addDict(guiDict, CFSTR("Custom"));
   addString(customDict, CFSTR("Comment"), "These values wrong, they present for sample");
     CFMutableArrayRef entriesArray = addArray(customDict, CFSTR("Entries"));
@@ -405,7 +503,7 @@ void PrintConfig(CFTypeRef data)
       addString(tool1Dict, CFSTR("#Hotkey"), "_NOT_SHOWN_");
       addBoolean(tool1Dict, CFSTR("#Disabled"), 1);
       addBoolean(tool1Dict, CFSTR("#Hidden"), 1);
-  
+
   // SMBIOS
   CFMutableDictionaryRef smbiosDict = addDict(dict, CFSTR("SMBIOS"));
   // SMBIOS TYPE0
@@ -417,7 +515,7 @@ void PrintConfig(CFTypeRef data)
   addString(smbiosDict, CFSTR("ProductName"), s->ProductName);
   addString(smbiosDict, CFSTR("Version"), s->VersionNr);
   addString(smbiosDict, CFSTR("SerialNumber"), s->SerialNr);
-  
+
   addUUID(smbiosDict,   CFSTR("SmUUID"), (UInt8 *)&s->SmUUID);
   addString(smbiosDict, CFSTR("Family"), s->FamilyName);
   // SMBIOS TYPE2
@@ -433,21 +531,21 @@ void PrintConfig(CFTypeRef data)
   addBoolean(smbiosDict, CFSTR("Mobile"), s->Mobile);
   // SMBIOS TYPE17
   addBoolean(smbiosDict, CFSTR("Trust"), s->TrustSMBIOS);
-  
+
   addString(smbiosDict, CFSTR("OEMProduct"), s->OEMProduct);
   addString(smbiosDict, CFSTR("OEMVendor"), s->OEMVendor);
   addString(smbiosDict, CFSTR("OEMBoard"), s->OEMBoard);
   if (s->PlatformFeature != 0xFFFF) {
     addHex(smbiosDict, CFSTR("PlatformFeature"), s->PlatformFeature);
   }
-  
+
   if (s->InjectMemoryTables) {
     CFMutableDictionaryRef memoryDict = addDict(smbiosDict, CFSTR("Memory"));
-    
+
     addString(memoryDict, CFSTR("Comment"), "there are no real data here");
     addInteger(memoryDict, CFSTR("#SlotCount"), 0);
     addInteger(memoryDict, CFSTR("#Channels"), 0);
-    
+
     CFMutableArrayRef modulesArray = addArray(memoryDict, CFSTR("Modules"));
     CFMutableDictionaryRef moduleDict = addDictToArray(modulesArray);
     addInteger(moduleDict, CFSTR("#Slot"), 0);
@@ -466,7 +564,7 @@ void PrintConfig(CFTypeRef data)
   addInteger(slotsDict, CFSTR("Type"), 1);
   addString(slotsDict, CFSTR("Name"), "Airport");
 
-  
+
   // CPU
   CFMutableDictionaryRef cpuDict = addDict(dict, CFSTR("CPU"));
   addHex(cpuDict, CFSTR("Type"), s->CpuType);
@@ -482,7 +580,7 @@ void PrintConfig(CFTypeRef data)
   addBoolean(cpuDict, CFSTR("#TDP"), s->TDP);
   addBoolean(cpuDict, CFSTR("#QEMU"), s->QEMU);
 
-  
+
   // Devices
   CFMutableDictionaryRef pciDict = addDict(dict, CFSTR("Devices"));
   addBoolean(pciDict, CFSTR("#Inject"), s->StringInjector);
@@ -494,6 +592,11 @@ void PrintConfig(CFTypeRef data)
   addString(appPropDict, CFSTR("#Device"), "XXX");
   addString(appPropDict, CFSTR("#Key"), "AAPL,XXX");
   addHex(appPropDict, CFSTR("#Value"), 0xFFFF);
+  
+  CFMutableDictionaryRef propDict = addDict(pciDict, CFSTR("Properties"));
+  addGFXDictionary(propDict, gfx);
+  
+
 
   CFMutableDictionaryRef fakeIDDict = addDict(pciDict, CFSTR("FakeID"));
   addHex(fakeIDDict, CFSTR("ATI"), s->FakeATI);
@@ -504,7 +607,7 @@ void PrintConfig(CFTypeRef data)
   addHex(fakeIDDict, CFSTR("SATA"), s->FakeSATA);
   addHex(fakeIDDict, CFSTR("XHCI"), s->FakeXHCI);
   addHex(fakeIDDict, CFSTR("IMEI"), s->FakeIMEI);
-  
+
   CFMutableDictionaryRef audioDict = addDict(pciDict, CFSTR("Audio"));
   if (s->HDAInjection)
     addInteger(audioDict, CFSTR("#Inject"), s->HDALayoutId);
@@ -517,21 +620,21 @@ void PrintConfig(CFTypeRef data)
   addBoolean(pciDict, CFSTR("#SetIntelBacklight"), s->IntelBacklight);
   addBoolean(pciDict, CFSTR("#SetIntelMaxBacklight"), s->IntelMaxBacklight);
   addInteger(pciDict, CFSTR("#IntelMaxValue"), s->IntelMaxValue);
-  
+
 
   CFMutableDictionaryRef usbDict = addDict(pciDict, CFSTR("USB"));
   addBoolean(usbDict, CFSTR("Inject"), s->USBInjection);
   addBoolean(usbDict, CFSTR("FixOwnership"), s->USBFixOwnership);
   addBoolean(usbDict, CFSTR("AddClockID"), s->InjectClockID);
   addBoolean(usbDict, CFSTR("HighCurrent"), s->HighCurrent);
-  
+
   // Graphics
   CFMutableDictionaryRef graphicsDict = addDict(dict, CFSTR("Graphics"));
   CFMutableDictionaryRef injectDict = addDict(graphicsDict, CFSTR("Inject"));
   addBoolean(injectDict, CFSTR("ATI"), s->InjectATI);
   addBoolean(injectDict, CFSTR("NVidia"), s->InjectNVidia);
   addBoolean(injectDict, CFSTR("Intel"), s->InjectIntel);
-  
+
   addBoolean(graphicsDict, CFSTR("LoadVBios"), s->LoadVBios);
 //  addBoolean(graphicsDict, CFSTR("InjectEDID"), s->InjectEDID);
 //  addString(graphicsDict, CFSTR("#CustomEDID"), "_NOT_SHOWN_");
@@ -562,7 +665,7 @@ void PrintConfig(CFTypeRef data)
   addString(edidDict, CFSTR("#Custom"), "_NOT_SHOWN_");
   addHex(edidDict, CFSTR("#VendorID"), s->VendorEDID);
   addHex(edidDict, CFSTR("#ProductID"), s->ProductEDID);
-  
+
   //ACPI
   CFMutableDictionaryRef acpiDict = addDict(dict, CFSTR("ACPI"));
   addHex(acpiDict, CFSTR("ResetAddress"), s->ResetAddr);
@@ -572,6 +675,8 @@ void PrintConfig(CFTypeRef data)
   addBoolean(acpiDict, CFSTR("smartUPS"), s->smartUPS);
   addBoolean(acpiDict, CFSTR("AutoMerge"), s->AutoMerge);
   addBoolean(acpiDict, CFSTR("DisableASPM"), s->NoASPM);
+  addBoolean(acpiDict, CFSTR("FixHeaders"), s->FixHeaders);
+  addBoolean(acpiDict, CFSTR("FixMCFG"), s->FixMCFG);
 
   CFMutableDictionaryRef dsdtDict = addDict(acpiDict, CFSTR("DSDT"));
   addUString(dsdtDict, CFSTR("Name"), (const UniChar *)&s->DsdtName);
@@ -635,7 +740,7 @@ void PrintConfig(CFTypeRef data)
   addBoolean(dsmDict, CFSTR("USB"),       !!(s->DropOEM_DSM & DEV_USB));
   addBoolean(dsmDict, CFSTR("IDE"),       !!(s->DropOEM_DSM & DEV_IDE));
   addBoolean(dsmDict, CFSTR("SATA"),      !!(s->DropOEM_DSM & DEV_SATA));
-  
+
   CFMutableDictionaryRef ssdtDict = addDict(acpiDict, CFSTR("SSDT"));
     CFMutableDictionaryRef genDict = addDict(ssdtDict, CFSTR("Generate"));
     addBoolean(genDict, CFSTR("PStates"), s->GeneratePStates);
@@ -663,10 +768,15 @@ void PrintConfig(CFTypeRef data)
   addString(drop1Dict, CFSTR("#Signature"), "_NOT_SHOWN_");
   addString(drop1Dict, CFSTR("#TableId"), "_NOT_SHOWN_");
   addInteger(drop1Dict, CFSTR("#Length"), 0);
-  
+
   CFMutableArrayRef sortedArray = addArray(acpiDict, CFSTR("#SortedOrder"));
   addStringToArray(sortedArray, "SSDT-1.aml");
   addInteger(acpiDict, CFSTR("#Sorted ACPI tables Count"), s->SortedACPICount);
+  
+  CFMutableDictionaryRef renameDict = addDict(acpiDict, CFSTR("#RenameDevices"));
+  addString(renameDict, CFSTR("#_SB.PCI0.RP01.PXSX"), "ARPT");
+  addString(renameDict, CFSTR("_SB.PCI0.RP02.PXSX"), "XHC2");
+  
 
   // KernelAndKextPatches
   CFMutableDictionaryRef KernelAndKextPatchesDict = addDict(dict, CFSTR("KernelAndKextPatches"));
@@ -682,35 +792,35 @@ void PrintConfig(CFTypeRef data)
   addInteger(KernelAndKextPatchesDict, CFSTR("#Number of KextsToPatch"), s->KernelAndKextPatches.NrKexts);
   addInteger(KernelAndKextPatchesDict, CFSTR("#Number of Patchs To Kernel"), s->KernelAndKextPatches.NrKernels);
   addHex(KernelAndKextPatchesDict, CFSTR("#FakeCPUID"), s->KernelAndKextPatches.FakeCPUID);
-    
+
   CFMutableArrayRef KKPatchArray = addArray(KernelAndKextPatchesDict, CFSTR("#KextsToPatch"));
   CFMutableDictionaryRef patchDict1 = addDictToArray(KKPatchArray);
   addString(patchDict1, CFSTR("Comment"), "this is a sample");
   addString(patchDict1, CFSTR("#Name"), "AppleUSBXHCIPCI");
   addString(patchDict1, CFSTR("#Find"), "_NOT_SHOWN_");
   addString(patchDict1, CFSTR("#Replace"), "_NOT_SHOWN_");
-  addBoolean(patchDict1, CFSTR("Disabled"), 1);  
+  addBoolean(patchDict1, CFSTR("Disabled"), 1);
   addString(patchDict1, CFSTR("#MatchOS"), "10.11.6,10.12.x");
-  addString(patchDict1, CFSTR("#MatchBuild"), "16D1111");  
-  
+  addString(patchDict1, CFSTR("#MatchBuild"), "16D1111");
+
   CFMutableDictionaryRef rtVariablesDict = addDict(dict, CFSTR("RtVariables"));
   addString(rtVariablesDict, CFSTR("#ROM"), "UseMacAddr0");
-  addString(rtVariablesDict, CFSTR("#MLB"), s->BoardSerialNumber); 
+  addString(rtVariablesDict, CFSTR("#MLB"), s->BoardSerialNumber);
   addHex(rtVariablesDict, CFSTR("CsrActiveConfig"), s->CsrActiveConfig);
   addHex(rtVariablesDict, CFSTR("BooterConfig"), s->BooterConfig);
-  
+
   CFMutableArrayRef disArray = addArray(dict, CFSTR("#DisableDrivers"));
   addStringToArray(disArray, "_NOT_SHOWN_");
-  
+
   CFMutableDictionaryRef bootGraphicsDict = addDict(dict, CFSTR("BootGraphics"));
   addHex(bootGraphicsDict, CFSTR("DefaultBackgroundColor"), s->DefaultBackgroundColor);
-  addInteger(bootGraphicsDict, CFSTR("UIScale"), s->UIScale);  
-  addInteger(bootGraphicsDict, CFSTR("EFILoginHiDPI"), s->EFILoginHiDPI); 
+  addInteger(bootGraphicsDict, CFSTR("UIScale"), s->UIScale);
+  addInteger(bootGraphicsDict, CFSTR("EFILoginHiDPI"), s->EFILoginHiDPI);
   addInteger(bootGraphicsDict, CFSTR("flagstate"), s->flagstate[0]);
-  
-  
+
+
   dump_plist(dict);
-  
+
   printf("\nDsdtFix=%x\n", s->FixDsdt);
   printf("DsdtFix offset=%d\n", (int)offsetof(SETTINGS_DATA, FixDsdt));
   printf("HDALayoutId offset=%d\n", (int)offsetof(SETTINGS_DATA, HDALayoutId));
@@ -721,36 +831,69 @@ void PrintConfig(CFTypeRef data)
 #else
   printf("xxx bit generator\n");
 #endif
-  
-  
+
+
 }
 
 int main(int argc, char **argv)
 {
   kern_return_t       result;
-  
+#if GFX
+  CFTypeRef devProp = NULL;
+//  SETTINGS settings;
+  GFX_HEADER * gfx;
+  const unsigned char *dataPtr = NULL;
+  CFIndex    length = 0;
+  CFTypeID   typeID;
+#endif
+
   result = IOMasterPort(bootstrap_port, &masterPort);
   if (result != KERN_SUCCESS) {
     errx(1, "Error getting the IOMaster port: %s",
          mach_error_string(result));
   }
   
+#if GFX
+  gEFI = IORegistryEntryFromPath(masterPort, "IODeviceTree:/efi");
+  if (gEFI == 0) {
+    errx(1, "EFI is not supported on this system");
+  }
+  
+  result = GetOFVariable(gEFI, "device-properties", &devProp);
+  //  int i;
+  
+  // Get the OF variable's type.
+  typeID = CFGetTypeID(devProp);
+  
+  if (typeID == CFDataGetTypeID()) {
+    length = CFDataGetLength(devProp);
+    if (length == 0)
+      return 0;
+    else
+      dataPtr = CFDataGetBytePtr(devProp);
+  } else {
+    printf("<INVALID> Type of properties\n");
+    return 0;
+  }
+
+  gfx =  parse_binary(dataPtr);
+#endif
+  
   gPlatform = IORegistryEntryFromPath(masterPort, "IODeviceTree:/efi/platform");
   if (gPlatform == 0) {
     errx(1, "EFI is not supported on this system");
   }
-  
-  CFTypeRef data;
-  result = GetOFVariable("Settings", &data);
+  CFTypeRef data = NULL;
+  result = GetOFVariable(gPlatform, "Settings", &data);
   if (result != KERN_SUCCESS) {
     errx(1, "Clover absent or too old : %s",
          mach_error_string(result));
   }
-  
-  PrintConfig(data);
+
+  PrintConfig(data, gfx);
   CFRelease(data);
-  
+
   IOObjectRelease(gPlatform);
-  
+
   return 0;
 }

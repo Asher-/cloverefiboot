@@ -827,13 +827,21 @@ typedef struct {
 typedef struct DEV_PROPERTY DEV_PROPERTY; //yyyy
 struct DEV_PROPERTY {
   UINT32        Device;
+  EFI_DEVICE_PATH_PROTOCOL* DevicePath;
   CHAR8         *Key;
   CHAR8         *Value;
   UINTN         ValueLen;
-  DEV_PROPERTY  *Next;
+  DEV_PROPERTY  *Next;   //next device or next property
+  DEV_PROPERTY  *Child;  // property list of the device
   CHAR8         *Label;
   INPUT_ITEM    MenuItem;
   TAG_TYPE      ValueType;
+};
+
+typedef struct ACPI_NAME_LIST ACPI_NAME_LIST;
+struct ACPI_NAME_LIST {
+	ACPI_NAME_LIST *Next;
+	CHAR8          *Name;
 };
 
 
@@ -1000,7 +1008,7 @@ typedef struct {
   CHAR8                   Language[16];
   CHAR8                   BootArgs[256];
   CHAR16                  CustomUuid[40];
-  
+
   CHAR16                  *DefaultVolume;
   CHAR16                  *DefaultLoader;
 //Boot
@@ -1010,7 +1018,7 @@ typedef struct {
   BOOLEAN                 IntelMaxBacklight;
 //  UINT8                   Pad21[1];
   UINT16                  VendorEDID;
-  UINT16                  ProductEDID;  
+  UINT16                  ProductEDID;
   UINT16                  BacklightLevel;
   BOOLEAN                 BacklightLevelConfig;
   BOOLEAN                 IntelBacklight;
@@ -1062,7 +1070,10 @@ typedef struct {
   UINT8                   MaxMultiplier;
   UINT8                   PluginType;
 //  BOOLEAN                 DropMCFG;
+  BOOLEAN                 FixMCFG;
 
+  UINT32				DeviceRenameCount;
+  ACPI_NAME_LIST		*DeviceRename;
   //Injections
   BOOLEAN                 StringInjector;
   BOOLEAN                 InjectSystemID;
@@ -1136,8 +1147,11 @@ typedef struct {
   BOOLEAN                 HighCurrent;
   BOOLEAN                 NameEH00;
   BOOLEAN                 NameXH00;
+  
+  BOOLEAN                 LANInjection;
+  BOOLEAN                 HDMIInjection;
 
-  UINT8                   pad61[2];
+ // UINT8                   pad61[2];
 
   // LegacyBoot
   CHAR16                  LegacyBoot[32];
@@ -1166,7 +1180,7 @@ typedef struct {
   UINT64                  DoubleClickTime;
   BOOLEAN                 PointerMirror;
 
-  UINT8                   pad7[6];
+//  UINT8                   pad7[6];
   UINT8                   CustomBoot;
   EG_IMAGE                *CustomLogo;
 
@@ -1183,7 +1197,7 @@ typedef struct {
   BOOLEAN                 NeverDoRecovery;
 
   // Multi-config
-  CHAR16  *ConfigName;
+  CHAR16  ConfigName[30];
   CHAR16  *MainConfigName;
 
   //Drivers
@@ -1213,7 +1227,7 @@ typedef struct {
   BOOLEAN                 SlpWak;
   BOOLEAN                 UseIntelHDMI;
   UINT8                   AFGLowPowerState;
-  UINT8                   pad83[4];
+//  UINT8                   pad83[4];
 
 
   // Table dropping
@@ -1225,7 +1239,7 @@ typedef struct {
   BOOLEAN                 ShowHiddenEntries;
   UINT8                   KernelScan;
   BOOLEAN                 LinuxScan;
-  UINT8                   pad84[3];
+//  UINT8                   pad84[3];
   CUSTOM_LOADER_ENTRY     *CustomEntries;
   CUSTOM_LEGACY_ENTRY     *CustomLegacy;
   CUSTOM_TOOL_ENTRY       *CustomTool;
@@ -1236,7 +1250,7 @@ typedef struct {
 
   //BlackListed kexts
   CHAR16                  BlockKexts[64];
-    
+
   // Disable inject kexts
 //  UINT32                  DisableInjectKextCount;
 //  CHAR16                  **DisabledInjectKext;
@@ -1252,11 +1266,11 @@ typedef struct {
   CHAR8                   **PatchDsdtLabel; //yyyy
   CHAR8                   **PatchDsdtTgt;
   INPUT_ITEM              *PatchDsdtMenuItem;
-  
+
   //other
   UINT32                  IntelMaxValue;
 
-  // boot.efi 
+  // boot.efi
   UINT32 OptionsBits;
   UINT32 FlagsBits;
   UINT32 UIScale;
@@ -1701,6 +1715,7 @@ extern ACTION                          gAction;
 extern UINTN                           gItemID;
 extern INTN                            OldChosenTheme;
 extern INTN                            OldChosenConfig;
+extern INTN                            OldChosenDsdt;
 
 //CHAR8*   orggBiosDsdt;
 extern UINT64                          gBiosDsdt;
@@ -1740,6 +1755,9 @@ FixgBiosDsdt (
   EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE *fadt,
   CHAR8                                     *OSVersion
   );
+
+VOID
+RenameDevices(UINT8* table);
 
 VOID
 GetBiosRegions (
@@ -2092,6 +2110,8 @@ CHAR8
   UINT32 subsys_id,
   CARDLIST * nvcard
   );
+
+UINT32 PciAddrFromDevicePath(EFI_DEVICE_PATH_PROTOCOL* DevicePath);
 
 VOID
 FillCardList(

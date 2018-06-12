@@ -13,9 +13,31 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 // Slice - exclude LegacyBios
+// Jief Machak - adopted to AppleKey protocol, 2018
 
 //#include "BiosKeyboard.h"
 #include "AppleKey.h"
+
+// DBG_TO: 0=no debug, 1=serial, 2=console 3=log
+// serial requires
+// [PcdsFixedAtBuild]
+//  gEfiMdePkgTokenSpaceGuid.PcdDebugPropertyMask|0x07
+//  gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0xFFFFFFFF
+// in package DSC file
+
+#define DBG_BIOSKEYBOARD 0
+
+#if DBG_BIOSKEYBOARD == 3
+#define DBG(...) MemLog(FALSE, 0, __VA_ARGS__)
+#elif DBG_BIOSKEYBOARD == 2
+#define DBG(...) AsciiPrint(__VA_ARGS__)
+#elif DBG_BIOSKEYBOARD == 1
+#define DBG(...) DebugPrint(1, __VA_ARGS__)
+#else
+#define DBG(...)
+#endif
+
+
 //
 // EFI Driver Binding Protocol Instance
 //
@@ -61,7 +83,7 @@ Enqueue (
 
 /**
   Dequeue the key.
-  
+
   @param  Queue                 The queue to be dequeued.
   @param  KeyData               The key data to be dequeued.
 
@@ -88,7 +110,7 @@ Dequeue (
 
 /**
   Check whether the queue is empty.
-  
+
   @param  Queue                 The queue to be checked.
 
   @retval EFI_NOT_READY         The queue is empty.
@@ -130,6 +152,7 @@ BiosKeyboardDriverBindingSupported (
   IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath
   )
 {
+//DBG("BiosKeyboardDriverBindingSupported\n");
   EFI_STATUS                                Status;
   EFI_LEGACY_8259_PROTOCOL                  *Legacy8259;
   EFI_ISA_IO_PROTOCOL                       *IsaIo;
@@ -151,9 +174,10 @@ BiosKeyboardDriverBindingSupported (
 	//
 	Status = gBS->LocateProtocol (&gEfiLegacy8259ProtocolGuid, NULL, (VOID **) &Legacy8259);
 	if (EFI_ERROR (Status)) {
+DBG(" Legacy 8259 Protocol NOT available\n");
 		return Status;
 	}
-	
+
   //
   // Open the IO Abstraction(s) needed to perform the supported test
   //
@@ -167,12 +191,14 @@ BiosKeyboardDriverBindingSupported (
                   );
 
   if (EFI_ERROR (Status)) {
+//DBG("OpenProtocol gEfiIsaIoProtocolGuid failed, status=%x\n", Status);
     return Status;
   }
   //
   // Use the ISA I/O Protocol to see if Controller is the Keyboard controller
   //
   if (IsaIo->ResourceList->Device.HID != EISA_PNP_ID (0x303) || IsaIo->ResourceList->Device.UID != 0) {
+//DBG("EFI_UNSUPPORTED\n");
     Status = EFI_UNSUPPORTED;
   }
 
@@ -183,6 +209,9 @@ BiosKeyboardDriverBindingSupported (
          Controller
          );
 
+  if ( Status == 0 ) {
+    DBG("BiosKeyboardDriverBindingSupported return %x\n", Status);
+  }
   return Status;
 }
 
@@ -206,6 +235,7 @@ BiosKeyboardDriverBindingStart (
   IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath
   )
 {
+//DBG("BiosKeyboardDriverBindingStart This=%x. Controller=%d, RemainingDevicePath=%x\n", This, Controller, RemainingDevicePath);
   EFI_STATUS                                Status;
 //  EFI_LEGACY_BIOS_PROTOCOL                  *LegacyBios;
   EFI_ISA_IO_PROTOCOL                       *IsaIo;
@@ -252,11 +282,11 @@ BiosKeyboardDriverBindingStart (
 		if (EFI_ERROR (Status)) {
 			goto Done;
 		}
-		
+
 		InitializeBiosIntCaller(&mThunkContext);
 		InitializeInterruptRedirection(mLegacy8259);
 	}
-	
+
 	Status = gBS->OpenProtocol (
 								Controller,
 								&gEfiDevicePathProtocolGuid,
@@ -268,7 +298,7 @@ BiosKeyboardDriverBindingStart (
 	if (EFI_ERROR (Status)) {
 		return Status;
 	}
-	
+
   //
   // Open the IO Abstraction(s) needed
   //
@@ -286,7 +316,7 @@ BiosKeyboardDriverBindingStart (
 						  &gEfiDevicePathProtocolGuid,
 						  This->DriverBindingHandle,
 						  Controller
-						  );	  
+						  );
     return Status;
   }
 
@@ -312,7 +342,7 @@ BiosKeyboardDriverBindingStart (
 	//
 	BiosKeyboardPrivate->Legacy8259   = mLegacy8259;
 	BiosKeyboardPrivate->ThunkContext = &mThunkContext;
-	
+
   BiosKeyboardPrivate->IsaIo                      = IsaIo;
 	BiosKeyboardPrivate->DevicePath             = ParentDevicePath;
 
@@ -323,14 +353,14 @@ BiosKeyboardDriverBindingStart (
   BiosKeyboardPrivate->StatusRegisterAddress      = KEYBOARD_8042_STATUS_REGISTER;
   BiosKeyboardPrivate->CommandRegisterAddress     = KEYBOARD_8042_COMMAND_REGISTER;
   BiosKeyboardPrivate->ExtendedKeyboard           = TRUE;
-  
+
   BiosKeyboardPrivate->Queue.Front                = 0;
   BiosKeyboardPrivate->Queue.Rear                 = 0;
   BiosKeyboardPrivate->SimpleTextInputEx.Reset               = BiosKeyboardResetEx;
   BiosKeyboardPrivate->SimpleTextInputEx.ReadKeyStrokeEx     = BiosKeyboardReadKeyStrokeEx;
   BiosKeyboardPrivate->SimpleTextInputEx.SetState            = BiosKeyboardSetState;
-  BiosKeyboardPrivate->SimpleTextInputEx.RegisterKeyNotify   = BiosKeyboardRegisterKeyNotify;  
-  BiosKeyboardPrivate->SimpleTextInputEx.UnregisterKeyNotify = BiosKeyboardUnregisterKeyNotify;    
+  BiosKeyboardPrivate->SimpleTextInputEx.RegisterKeyNotify   = BiosKeyboardRegisterKeyNotify;
+  BiosKeyboardPrivate->SimpleTextInputEx.UnregisterKeyNotify = BiosKeyboardUnregisterKeyNotify;
   InitializeListHead (&BiosKeyboardPrivate->NotifyList);
 
   //
@@ -365,7 +395,7 @@ BiosKeyboardDriverBindingStart (
   if (EFI_ERROR (Status)) {
     BiosKeyboardPrivate->SimpleTextInputEx.WaitForKeyEx = NULL;
     goto Done;
-  } 
+  }
 
   //
   // Setup a periodic timer, used for reading keystrokes at a fixed interval
@@ -393,7 +423,7 @@ BiosKeyboardDriverBindingStart (
     StatusCode  = EFI_PERIPHERAL_KEYBOARD | EFI_P_EC_CONTROLLER_ERROR;
     goto Done;
   }
-  
+
   //
   // Report a Progress Code for an attempt to detect the presence of the keyboard device in the system
   //
@@ -402,21 +432,24 @@ BiosKeyboardDriverBindingStart (
     EFI_PERIPHERAL_KEYBOARD | EFI_P_PC_PRESENCE_DETECT
     );
 
+//DBG("BiosKeyboardDriverBindingStart 2.1\n");
   //
   // Reset the keyboard device
   //
+  BOOLEAN extVerif = FeaturePcdGet (PcdPs2KbdExtendedVerification);
   Status = BiosKeyboardPrivate->SimpleTextInputEx.Reset (
                   &BiosKeyboardPrivate->SimpleTextInputEx,
-                  FeaturePcdGet (PcdPs2KbdExtendedVerification)
+                  extVerif
                   );
   if (EFI_ERROR (Status)) {
-//    DEBUG ((EFI_D_ERROR, "[KBD]Reset Failed. Status - %r\n", Status));  
+//    DEBUG ((EFI_D_ERROR, "[KBD]Reset Failed. Status - %r\n", Status));
     StatusCode = EFI_PERIPHERAL_KEYBOARD | EFI_P_EC_NOT_DETECTED;
     goto Done;
   }
   //
   // Do platform specific policy like port swapping and keyboard light default
   //
+//DBG("BiosKeyboardDriverBindingStart 3\n");
   if (Ps2Policy != NULL) {
 
     Ps2Policy->Ps2InitHardware (Controller);
@@ -451,8 +484,8 @@ BiosKeyboardDriverBindingStart (
                                                  0x15,
                                                  &Regs
                                                  ); */
-	
-	
+
+
 	CarryFlag = LegacyBiosInt86 (BiosKeyboardPrivate, 0x15, &Regs);
   if (!CarryFlag) {
     //
@@ -469,7 +502,7 @@ BiosKeyboardDriverBindingStart (
                                                      0x16,
                                                      &Regs
                                                      ); */
-		
+
 	CarryFlag = LegacyBiosInt86 (BiosKeyboardPrivate, 0x16, &Regs);
 
       if (!CarryFlag) {
@@ -502,7 +535,7 @@ BiosKeyboardDriverBindingStart (
 					   L"BIOS[INT16] Keyboard Device",
 					   FALSE
 					   );
-	
+
 	//
   // Install protocol interfaces for the keyboard device.
   //
@@ -528,18 +561,18 @@ Done:
 
   if (EFI_ERROR (Status)) {
 
-    if (BiosKeyboardPrivate != NULL) {    
+    if (BiosKeyboardPrivate != NULL) {
       if ((BiosKeyboardPrivate->SimpleTextIn).WaitForKey != NULL) {
         gBS->CloseEvent ((BiosKeyboardPrivate->SimpleTextIn).WaitForKey);
       }
 
       if ((BiosKeyboardPrivate->SimpleTextInputEx).WaitForKeyEx != NULL) {
-        gBS->CloseEvent ((BiosKeyboardPrivate->SimpleTextInputEx).WaitForKeyEx);    
+        gBS->CloseEvent ((BiosKeyboardPrivate->SimpleTextInputEx).WaitForKeyEx);
       }
       BiosKeyboardFreeNotifyList (&BiosKeyboardPrivate->NotifyList);
 
       if (BiosKeyboardPrivate->TimerEvent != NULL) {
-        gBS->CloseEvent (BiosKeyboardPrivate->TimerEvent);    
+        gBS->CloseEvent (BiosKeyboardPrivate->TimerEvent);
       }
 
       FreePool (BiosKeyboardPrivate);
@@ -550,7 +583,7 @@ Done:
 						  This->DriverBindingHandle,
 						  Controller
 						  );
-	  
+
     if (IsaIo != NULL) {
       gBS->CloseProtocol (
              Controller,
@@ -616,9 +649,9 @@ BiosKeyboardDriverBindingStop (
   if (EFI_ERROR (Status)) {
     return Status;
   }
-  
+
   BiosKeyboardPrivate = BIOS_KEYBOARD_DEV_FROM_THIS (SimpleTextIn);
-  
+
   BiosKbFreeAppleKeyMapDb (BiosKeyboardPrivate);
 
   Status = gBS->UninstallMultipleProtocolInterfaces (
@@ -641,8 +674,8 @@ BiosKeyboardDriverBindingStop (
 						This->DriverBindingHandle,
 						Controller
 						);
-	
-	
+
+
   gBS->CloseProtocol (
          Controller,
          &gEfiIsaIoProtocolGuid,
@@ -997,19 +1030,19 @@ KeyboardWaitForValue (
 }
 
 /**
-  Reads the next keystroke from the input device. The WaitForKey Event can 
+  Reads the next keystroke from the input device. The WaitForKey Event can
   be used to test for existance of a keystroke via WaitForEvent () call.
 
   @param  BiosKeyboardPrivate   Bioskeyboard driver private structure.
-  @param  KeyData               A pointer to a buffer that is filled in with the keystroke 
+  @param  KeyData               A pointer to a buffer that is filled in with the keystroke
                                 state data for the key that was pressed.
 
   @retval EFI_SUCCESS           The keystroke information was returned.
   @retval EFI_NOT_READY         There was no keystroke data availiable.
-  @retval EFI_DEVICE_ERROR      The keystroke information was not returned due to 
+  @retval EFI_DEVICE_ERROR      The keystroke information was not returned due to
                                 hardware errors.
-  @retval EFI_INVALID_PARAMETER KeyData is NULL.                        
-    
+  @retval EFI_INVALID_PARAMETER KeyData is NULL.
+
 **/
 EFI_STATUS
 KeyboardReadKeyStrokeWorker (
@@ -1026,14 +1059,14 @@ KeyboardReadKeyStrokeWorker (
   //
   // Use TimerEvent callback function to check whether there's any key pressed
   //
-  
+
   //
   // Stall 1ms to give a chance to let other driver interrupt this routine for their timer event.
-  // Csm will be used to check whether there is a key pending, but the csm will disable all 
+  // Csm will be used to check whether there is a key pending, but the csm will disable all
   // interrupt before switch to compatibility16, which mean all the efiCompatibility timer
-  // event will stop work during the compatibility16. And If a caller recursivly invoke this function, 
-  // e.g. OS loader, other drivers which are driven by timer event will have a bad performance during this period, 
-  // e.g. usb keyboard driver. 
+  // event will stop work during the compatibility16. And If a caller recursivly invoke this function,
+  // e.g. OS loader, other drivers which are driven by timer event will have a bad performance during this period,
+  // e.g. usb keyboard driver.
   // Add a stall period can greatly increate other driver performance during the WaitForKey is recursivly invoked.
   // 1ms delay will make little impact to the thunk keyboard driver, and user can not feel the delay at all when input.
   //
@@ -1079,7 +1112,7 @@ BiosKeyboardReset (
   )
 {
   BIOS_KEYBOARD_DEV *BiosKeyboardPrivate;
-  EFI_STATUS        Status;
+  EFI_STATUS        Status = 0;
   EFI_TPL           OldTpl;
   UINT8             CommandByte;
   BOOLEAN           MouseEnable;
@@ -1088,53 +1121,53 @@ BiosKeyboardReset (
   MouseEnable         = FALSE;
   BiosKeyboardPrivate = BIOS_KEYBOARD_DEV_FROM_THIS (This);
 
-  //
+//
   // 1
   // Report reset progress code
-  //
+//
   REPORT_STATUS_CODE (
     EFI_PROGRESS_CODE,
     EFI_PERIPHERAL_KEYBOARD | EFI_P_PC_RESET
     );
 
-  //
+//
   // Report a Progress Code for clearing the keyboard buffer
-  //
+//
   REPORT_STATUS_CODE (
     EFI_PROGRESS_CODE,
     EFI_PERIPHERAL_KEYBOARD | EFI_P_KEYBOARD_PC_CLEAR_BUFFER
     );
 
-  //
+//
   // 2
   // Raise TPL to avoid mouse operation impact
-  //
+//
   OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
 
-  //
-  //
+//
+//
   // Exhaust output buffer data
-  //
+//
   do {
     Status = BiosKeyboardReadKeyStroke (
                This,
                &Key
                );
   } while (!EFI_ERROR (Status));
-  //
+//
   // 3
   // check for KBC itself firstly for setted-up already or not by reading SYSF (bit2) of status register via 64H
   // if not skip step 4&5 and jump to step 6 to selftest KBC and report this
   // else   go step 4
-  //
+//
   if ((KeyReadStatusRegister (BiosKeyboardPrivate) & KBC_STSREG_VIA64_SYSF) != 0) {
-    //
+//
     // 4
     // CheckMouseStatus to decide enable it later or not
-    //
-    //
+//
+//
     // Read the command byte of KBC
-    //
+//
     Status = KeyboardCommand (
                BiosKeyboardPrivate,
                KBC_CMDREG_VIA64_CMDBYTE_R
@@ -1375,7 +1408,7 @@ BiosKeyboardReset (
       Status    = EFI_DEVICE_ERROR;
       goto Exit;
     }
-    //
+//
     // 12
     // Additional validation, do it as follow:
     // 1). check for status register of PARE && TIM via 64H
@@ -1465,6 +1498,7 @@ BiosKeyboardReadKeyStroke (
   OUT EFI_INPUT_KEY                   *Key
   )
 {
+//DBG("BiosKeyboardReadKeyStroke\n");
   BIOS_KEYBOARD_DEV     *BiosKeyboardPrivate;
   EFI_STATUS            Status;
   EFI_KEY_DATA          KeyData;
@@ -1487,7 +1521,7 @@ BiosKeyboardReadKeyStroke (
     }
   }
 
-  CopyMem (Key, &KeyData.Key, sizeof (EFI_INPUT_KEY));  
+  CopyMem (Key, &KeyData.Key, sizeof (EFI_INPUT_KEY));
 
   return EFI_SUCCESS;
 }
@@ -1531,7 +1565,7 @@ BiosKeyboardWaitForKey (
   Check key buffer to get the key stroke status.
 
   @param  This         Pointer of the protocol EFI_SIMPLE_TEXT_IN_PROTOCOL.
-  
+
   @retval EFI_SUCCESS  A key is being pressed now.
   @retval Other        No key is now pressed.
 
@@ -1706,7 +1740,7 @@ CONVERT_TABLE_ENTRY mConvertTable[] = {
   @param  KeyChar      Unicode of key.
   @param  ScanCode     Scan code of key.
 
-  @return The value of EFI Scancode for the key.    
+  @return The value of EFI Scancode for the key.
   @retval SCAN_NULL   No corresponding value in the EFI convert table is found for the key.
 
 **/
@@ -1744,7 +1778,7 @@ ConvertToEFIScanCode (
 /**
   Check whether there is Ps/2 Keyboard device in system by 0xF4 Keyboard Command
   If Keyboard receives 0xF4, it will respond with 'ACK'. If it doesn't respond, the device
-  should not be in system. 
+  should not be in system.
 
   @param  BiosKeyboardPrivate  Keyboard Private Data Struture
 
@@ -1797,13 +1831,15 @@ CheckKeyboardConnect (
 
 /**
   Timer event handler: read a series of key stroke from 8042
-  and put them into memory key buffer. 
+  and put them into memory key buffer.
   It is registered as running under TPL_NOTIFY
-  
+
   @param  Event   The timer event
   @param  Context A BIOS_KEYBOARD_DEV pointer
 
 **/
+static int apple_need_zero = 0;
+
 VOID
 EFIAPI
 BiosKeyboardTimerHandler (
@@ -1821,7 +1857,7 @@ BiosKeyboardTimerHandler (
   BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY *CurrentNotify;
   //for AppleDb
   UINTN               NumberOfKeys;
-  APPLE_KEY           Keys[8];
+  APPLE_KEY           Keys[8]; // APPLE_KEY is UINT16
 
   ZeroMem (&Regs, sizeof (EFI_IA32_REGISTER_SET));
 
@@ -1846,11 +1882,23 @@ BiosKeyboardTimerHandler (
                                      0x16,
                                      &Regs
                                      ); */
-	LegacyBiosInt86 (BiosKeyboardPrivate, 0x16, &Regs);	
+	LegacyBiosInt86 (BiosKeyboardPrivate, 0x16, &Regs);
   if (Regs.E.EFLAGS.Bits.ZF != 0) {
     gBS->RestoreTPL (OldTpl);
+    if ( apple_need_zero ) {
+    	APPLE_KEY           Keys[8]; // APPLE_KEY is UINT16
+//DBG("BiosKeyboardPrivate->KeyMapDb->SetKeyStrokeBufferKeys 0\n");
+    	BiosKeyboardPrivate->KeyMapDb->SetKeyStrokeBufferKeys (
+                                                           BiosKeyboardPrivate->KeyMapDb,
+                                                           BiosKeyboardPrivate->KeyMapDbIndex,
+                                                           (APPLE_MODIFIER_MAP)0,
+                                                           0,
+                                                           &Keys[0]
+                                                           );
+            apple_need_zero = 0;
+        }
     return;
-  }  
+  }
 
   //
   // Read the key
@@ -1866,8 +1914,8 @@ BiosKeyboardTimerHandler (
                                      0x16,
                                      &Regs
                                      );*/
-	
-	LegacyBiosInt86 (BiosKeyboardPrivate, 0x16, &Regs);	
+
+	LegacyBiosInt86 (BiosKeyboardPrivate, 0x16, &Regs);
   KeyData.Key.ScanCode            = (UINT16) Regs.H.AH;
   KeyData.Key.UnicodeChar         = (UINT16) Regs.H.AL;
 /*  DEBUG ((
@@ -1876,27 +1924,27 @@ BiosKeyboardTimerHandler (
     KeyData.Key.ScanCode,
     KeyData.Key.UnicodeChar
     )); */
-  
+
   KeyData.KeyState.KeyShiftState  = EFI_SHIFT_STATE_VALID;
   KeyData.KeyState.KeyToggleState = EFI_TOGGLE_STATE_VALID;
   //
-  // Legacy Bios use Int 9 which is IRQ1 interrupt handler to get keystroke scancode to KB  buffer in BDA (BIOS DATE AREA),  then 
-  // Int 16 depend  KB buffer and some key bits in BDA to translate the scancode to ASCII code, and  return both the scancode and ASCII 
-  // code to Int 16 caller. This translation process works well if the Int 9  could response user input in time. But in Tiano enviorment,  the Int 9 
-  // will be disabled after the thunk call finish, which means if user crazy input during int 9 being disabled, some keystrokes will be lost when 
-  // KB device own hardware buffer overflows. And if the lost keystroke code is CTRL or ALT or SHIFT release code, these function key flags bit 
-  // in BDA will not be updated. So the Int 16 will believe the CTRL or ALT or SHIFT is still pressed, and Int 16 will translate later scancode 
-  // to wrong ASCII code. We can increase the Thunk frequence to let Int 9 response in time, but this way will much hurt other dirvers 
+  // Legacy Bios use Int 9 which is IRQ1 interrupt handler to get keystroke scancode to KB  buffer in BDA (BIOS DATE AREA),  then
+  // Int 16 depend  KB buffer and some key bits in BDA to translate the scancode to ASCII code, and  return both the scancode and ASCII
+  // code to Int 16 caller. This translation process works well if the Int 9  could response user input in time. But in Tiano enviorment,  the Int 9
+  // will be disabled after the thunk call finish, which means if user crazy input during int 9 being disabled, some keystrokes will be lost when
+  // KB device own hardware buffer overflows. And if the lost keystroke code is CTRL or ALT or SHIFT release code, these function key flags bit
+  // in BDA will not be updated. So the Int 16 will believe the CTRL or ALT or SHIFT is still pressed, and Int 16 will translate later scancode
+  // to wrong ASCII code. We can increase the Thunk frequence to let Int 9 response in time, but this way will much hurt other dirvers
   // performance, like USB.
   //
-  // 1. If CTRL or ALT release code is missed,  all later input keys will be translated to wrong ASCII codes which the Tiano cannot support. In 
-  //     this case, the KB input seems fail to work, and user input is blocked. To solve the problem, we can help to clear the CTRL or ALT flag in BDA 
-  //    after every Int 16 finish. Thus persist to press CTRL or ALT has same effection as only press one time. It is Ok, since user not often use the 
+  // 1. If CTRL or ALT release code is missed,  all later input keys will be translated to wrong ASCII codes which the Tiano cannot support. In
+  //     this case, the KB input seems fail to work, and user input is blocked. To solve the problem, we can help to clear the CTRL or ALT flag in BDA
+  //    after every Int 16 finish. Thus persist to press CTRL or ALT has same effection as only press one time. It is Ok, since user not often use the
   //    CTRL and ALT.
   //
-  // 2. If SHIFT release code is missed, all later lowercase input will become capital. This is ugly, but not block user input. If user press the lost 
+  // 2. If SHIFT release code is missed, all later lowercase input will become capital. This is ugly, but not block user input. If user press the lost
   //     SHIFT again,  the lowercase will come back to normal. Since user often use the SHIFT, it is not reasonable to help to clear the SHIFT flag in BDA,
-  //     which will let persist to press SHIFT has same effection as only press one time. 
+  //     which will let persist to press SHIFT has same effection as only press one time.
   //
   //0040h:0017h - KEYBOARD - STATUS FLAGS 1
   //   7 INSert active
@@ -1925,21 +1973,21 @@ BiosKeyboardTimerHandler (
       }
       if ((KbFlag1 & KB_SCROLL_LOCK_BIT) == KB_SCROLL_LOCK_BIT) {
         DEBUG ((EFI_D_INFO, "[KBD]Scroll Lock Key is pressed.\n"));
-      } 
+      }
       if ((KbFlag1 & KB_ALT_PRESSED) == KB_ALT_PRESSED) {
         if ((KbFlag2 & KB_LEFT_ALT_PRESSED) == KB_LEFT_ALT_PRESSED) {
           DEBUG ((EFI_D_INFO, "[KBD]Left Alt Key is pressed.\n"));
         } else {
           DEBUG ((EFI_D_INFO, "[KBD]Right Alt Key is pressed.\n"));
         }
-      }  
+      }
       if ((KbFlag1 & KB_CTRL_PRESSED) == KB_CTRL_PRESSED) {
         if ((KbFlag2 & KB_LEFT_CTRL_PRESSED) == KB_LEFT_CTRL_PRESSED) {
           DEBUG ((EFI_D_INFO, "[KBD]Left Ctrl Key is pressed.\n"));
         } else {
           DEBUG ((EFI_D_INFO, "[KBD]Right Ctrl Key is pressed.\n"));
         }
-      }  
+      }
       if ((KbFlag1 & KB_LEFT_SHIFT_PRESSED) == KB_LEFT_SHIFT_PRESSED) {
         DEBUG ((EFI_D_INFO, "[KBD]Left Shift Key is pressed.\n"));
       }
@@ -1964,13 +2012,13 @@ BiosKeyboardTimerHandler (
   //
   // Record shift state
   // BUGBUG: Need add Menu key and Left/Right Logo key state in the future
-  //  
+  //
   if ((KbFlag1 & KB_ALT_PRESSED) == KB_ALT_PRESSED) {
     KeyData.KeyState.KeyShiftState  |= ((KbFlag2 & KB_LEFT_ALT_PRESSED) == KB_LEFT_ALT_PRESSED) ? EFI_LEFT_ALT_PRESSED : EFI_RIGHT_ALT_PRESSED;
-  }  
+  }
   if ((KbFlag1 & KB_CTRL_PRESSED) == KB_CTRL_PRESSED) {
     KeyData.KeyState.KeyShiftState  |= ((KbFlag2 & KB_LEFT_CTRL_PRESSED) == KB_LEFT_CTRL_PRESSED) ? EFI_LEFT_CONTROL_PRESSED : EFI_RIGHT_CONTROL_PRESSED;
-  }  
+  }
   if ((KbFlag1 & KB_LEFT_SHIFT_PRESSED) == KB_LEFT_SHIFT_PRESSED) {
     KeyData.KeyState.KeyShiftState  |= EFI_LEFT_SHIFT_PRESSED;
   }
@@ -1983,10 +2031,10 @@ BiosKeyboardTimerHandler (
   //
   KbFlag2 &= ~(KB_LEFT_ALT_PRESSED | KB_LEFT_CTRL_PRESSED);
   *((UINT8 *) (UINTN) 0x418) = KbFlag2;
-  KbFlag1 &= ~0x0C;                      
-  *((UINT8 *) (UINTN) 0x417) = KbFlag1; 
+  KbFlag1 &= ~0x0C;
+  *((UINT8 *) (UINTN) 0x417) = KbFlag1;
 
-  
+
   //
   // Output EFI input key and shift/toggle state
   //
@@ -2036,12 +2084,12 @@ BiosKeyboardTimerHandler (
   //
   for (Link = BiosKeyboardPrivate->NotifyList.ForwardLink; Link != &BiosKeyboardPrivate->NotifyList; Link = Link->ForwardLink) {
     CurrentNotify = CR (
-                      Link, 
-                      BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY, 
-                      NotifyEntry, 
+                      Link,
+                      BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY,
+                      NotifyEntry,
                       BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE
                       );
-    if (IsKeyRegistered (&CurrentNotify->KeyData, &KeyData)) { 
+    if (IsKeyRegistered (&CurrentNotify->KeyData, &KeyData)) {
       CurrentNotify->KeyNotificationFn (&KeyData);
     }
   }
@@ -2052,17 +2100,17 @@ BiosKeyboardTimerHandler (
   //
   gBS->RestoreTPL (OldTpl);
 /* a method from UsbKb
- 
+
  // Following code checks current keyboard input report against old key code buffer.
  // According to USB HID Firmware Specification, the report consists of 8 bytes.
- // Byte 0 is map of Modifier keys. 
+ // Byte 0 is map of Modifier keys.
  // Byte 1 is reserved.
  // Bytes 2 to 7 are keycodes. -> KeyData.Key.ScanCode
  //
   CurKeyCodeBuffer  = (UINT8 *) Data;
   CurModifierMap  = CurKeyCodeBuffer[0]; -> KeyData.KeyState.KeyShiftState
   NumberOfKeys          = 0;
-  
+
   //
   // Pass the data to the Apple protocol
   //
@@ -2072,27 +2120,243 @@ BiosKeyboardTimerHandler (
       ++NumberOfKeys;
     }
   }
-  
-*/  
-  NumberOfKeys = 3;
-  Keys[0] = (APPLE_KEY)KeyData.KeyState.KeyShiftState;
-  Keys[1] = (APPLE_KEY)KeyData.KeyState.KeyToggleState;  //or 0?
-  Keys[2] = (APPLE_KEY)KeyData.Key.ScanCode;
-  
+
+*/
+//  NumberOfKeys = 3;
+//  Keys[0] = (APPLE_KEY)KeyData.KeyState.KeyShiftState;
+//  Keys[1] = (APPLE_KEY)KeyData.KeyState.KeyToggleState;  //or 0?
+//  Keys[2] = (APPLE_KEY)KeyData.Key.ScanCode;
+
+  // Parse the modifier key, which is the first byte of keyboard input report.
+  //
+extern int MapBiosKey(EFI_KEY_DATA KeyData, APPLE_KEY* pKey, UINT8* pCurModifierMap);
+
+DBG("2 Got bios key ScanCode=%x, Uchar=%x, ShiftState=%x, ToogleState=%x\n", KeyData.Key.ScanCode, KeyData.Key.UnicodeChar, KeyData.KeyState.KeyShiftState, KeyData.KeyState.KeyToggleState);
+
+  UINT8 CurModifierMap  = 0;
+
+//  DBG("Key %d\n", KeyData.Key.ScanCode);
+//  if (BiosKeyboardPrivate->KeyMapDb == NULL) {
+//     EFI_STATUS Status = BiosKbLocateAppleKeyMapDb (BiosKeyboardPrivate);
+//#ifdef TRACE_KEYS
+//  DBG("BiosKeyboardTimerHandler: BiosKbLocateAppleKeyMapDb status=%x\n", Status);
+//#endif
+//  }
   if (BiosKeyboardPrivate->KeyMapDb != NULL) {
+//  DBG("BiosKeyboardTimerHandler: SetKeyStrokeBufferKeys\n");
+
+    if ( MapBiosKey(KeyData, &Keys[0], &CurModifierMap) )
+    {
+    	NumberOfKeys=1;
+  DBG("3BiosKeyboardPrivate->KeyMapDb(0x%x)->SetKeyStrokeBufferKeys CurModifierMap=%x, NumberOfKeys=%d ", BiosKeyboardPrivate->KeyMapDb, CurModifierMap, NumberOfKeys);
+  int zud; for (zud=0;zud<NumberOfKeys;zud++) {
+    DBG("Keys[%d]=%d(%d %d) 0x%x ", zud, Keys[zud], Keys[zud]>>8, Keys[zud]&0xFF, Keys[zud]);
+  }
+    DBG("\n");
     BiosKeyboardPrivate->KeyMapDb->SetKeyStrokeBufferKeys (
                                                            BiosKeyboardPrivate->KeyMapDb,
                                                            BiosKeyboardPrivate->KeyMapDbIndex,
-                                                           (APPLE_MODIFIER_MAP)(Keys[0]),
+															   (APPLE_MODIFIER_MAP)CurModifierMap,
                                                            NumberOfKeys,
                                                            &Keys[0]
                                                            );
+	    apple_need_zero = 1;
+	}
+  }else{
+//    DBG("BiosKeyboardPrivate->KeyMapDb == NULL\n");
   }
 
 
-  return ;  
+  return ;
 }
 
+int MapBiosKey(EFI_KEY_DATA KeyData, APPLE_KEY* pKey, UINT8* pCurModifierMap)
+{
+	if ( KeyData.Key.UnicodeChar == 0 )
+	{
+		*pCurModifierMap = 0;
+		switch (KeyData.Key.ScanCode) {
+			case 0x01: // up arrow
+				*pKey = 0x7052;
+				return 1;
+			case 0x02: // down arrow
+				*pKey = 0x7051;
+				return 1;
+			case 0x03: // left arrow
+				*pKey = 0x7050;
+				return 1;
+			case 0x04: // right arrow
+				*pKey = 0x704F;
+				return 1;
+		}
+		return 0;
+	}
+	if ( KeyData.Key.UnicodeChar >= 'a'  &&  KeyData.Key.UnicodeChar <= 'z' ) {
+		*pKey = 0x7004 + ( KeyData.Key.UnicodeChar - 'a');
+		*pCurModifierMap = 0;
+		return 1;
+	}
+	if ( KeyData.Key.UnicodeChar >= 'A'  &&  KeyData.Key.UnicodeChar <= 'Z' ) {
+		*pKey = 0x7004 + ( KeyData.Key.UnicodeChar - 'A');
+		*pCurModifierMap = 2;
+		return 1;
+	}
+	if ( KeyData.Key.UnicodeChar == '0' ) { // Could have put that in the switch, but wanted to make very clear that the 0 wasn't forgotten and that this : "KeyData.Key.UnicodeChar >= '1'" (instead of '0') is not a mistake !!!
+		*pKey = 0x7027;
+		return 1;
+	}
+	if ( KeyData.Key.UnicodeChar >= '1'  &&  KeyData.Key.UnicodeChar <= '9' ) {
+		*pKey = 0x701E + ( KeyData.Key.UnicodeChar - '1');
+		return 1;
+	}
+
+	*pCurModifierMap = 0;
+	switch (KeyData.Key.UnicodeChar) {
+		case 0x01: // up arrow
+			*pKey = 0x7052;
+			return 1;
+		case 0x02: // down arrow
+			*pKey = 0x7051;
+			return 1;
+		case 0x03: // left arrow
+			*pKey = 0x7050;
+			return 1;
+		case 0x04: // right arrow
+			*pKey = 0x704F;
+			return 1;
+		case 0x08: // backspace
+			*pKey = 0x702A;
+			return 1;
+		case 0x0D: // return
+			*pKey = 0x7028;
+			return 1;
+		case ' ': // return
+			*pKey = 0x702C;
+			return 1;
+		case '!': // return
+			*pKey = 0x701E;
+			*pCurModifierMap = 2;
+			return 1;
+		case '"': // return
+			*pKey = 0x7034;
+			*pCurModifierMap = 2;
+			return 1;
+		case '#': // return
+			*pKey = 0x7020;
+			*pCurModifierMap = 2;
+			return 1;
+		case '$': // return
+			*pKey = 0x7021;
+			*pCurModifierMap = 2;
+			return 1;
+		case '%': // return
+			*pKey = 0x7022;
+			*pCurModifierMap = 2;
+			return 1;
+		case '&': // return
+			*pKey = 0x7024;
+			*pCurModifierMap = 2;
+			return 1;
+		case '\'': // return
+			*pKey = 0x7034;
+			return 1;
+		case '(': // return
+			*pKey = 0x7026;
+			*pCurModifierMap = 2;
+			return 1;
+		case ')': // return
+			*pKey = 0x7027;
+			*pCurModifierMap = 2;
+			return 1;
+		case '*': // return
+			*pKey = 0x7025;
+			*pCurModifierMap = 2;
+			return 1;
+		case '+': // return
+			*pKey = 0x702E;
+			*pCurModifierMap = 2;
+			return 1;
+		case ',': // return
+			*pKey = 0x7036;
+			return 1;
+		case '-': // return
+			*pKey = 0x702D;
+			return 1;
+		case '.': // return
+			*pKey = 0x7037;
+			return 1;
+		case '/': // return
+			*pKey = 0x7038;
+			return 1;
+
+		case ':': // return
+			*pKey = 0x7033;
+			*pCurModifierMap = 2;
+			return 1;
+		case ';': // return
+			*pKey = 0x7033;
+			return 1;
+		case '<': // return
+			*pKey = 0x7036;
+			*pCurModifierMap = 2;
+			return 1;
+		case '=': // return
+			*pKey = 0x702E;
+			return 1;
+		case '>': // return
+			*pKey = 0x7037;
+			*pCurModifierMap = 2;
+			return 1;
+		case '?': // return
+			*pKey = 0x7038;
+			*pCurModifierMap = 2;
+			return 1;
+		case '@': // return
+			*pKey = 0x701F;
+			*pCurModifierMap = 2;
+			return 1;
+
+
+		case '[': // return
+			*pKey = 0x702F;
+			return 1;
+		case '\\': // return
+			*pKey = 0x7031;
+			return 1;
+		case ']': // return
+			*pKey = 0x7030;
+			return 1;
+		case '^': // return
+			*pKey = 0x7023;
+			*pCurModifierMap = 2;
+			return 1;
+		case '_': // return
+			*pKey = 0x702D;
+			*pCurModifierMap = 2;
+			return 1;
+		case '`': // return
+			*pKey = 0x7035;
+			return 1;
+
+		case '{': // return
+			*pKey = 0x702F;
+			*pCurModifierMap = 2;
+			return 1;
+		case '|': // return
+			*pKey = 0x7031;
+			*pCurModifierMap = 2;
+			return 1;
+		case '}': // return
+			*pKey = 0x7030;
+			*pCurModifierMap = 2;
+			return 1;
+		case '~': // return
+			*pKey = 0x7035;
+			*pCurModifierMap = 2;
+			return 1;
+	}
+	return 0;
+}
 /**
   Free keyboard notify list.
 
@@ -2114,9 +2378,9 @@ BiosKeyboardFreeNotifyList (
   }
   while (!IsListEmpty (ListHead)) {
     NotifyNode = CR (
-                   ListHead->ForwardLink, 
-                   BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY, 
-                   NotifyEntry, 
+                   ListHead->ForwardLink,
+                   BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY,
+                   NotifyEntry,
                    BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE
                    );
     RemoveEntryList (ListHead->ForwardLink);
@@ -2129,14 +2393,14 @@ BiosKeyboardFreeNotifyList (
 /**
   Check if key is registered.
 
-  @param  RegisteredData    A pointer to a buffer that is filled in with the keystroke 
+  @param  RegisteredData    A pointer to a buffer that is filled in with the keystroke
                             state data for the key that was registered.
-  @param  InputData         A pointer to a buffer that is filled in with the keystroke 
+  @param  InputData         A pointer to a buffer that is filled in with the keystroke
                             state data for the key that was pressed.
 
   @retval TRUE              Key be pressed matches a registered key.
-  @retval FLASE             Match failed. 
-  
+  @retval FLASE             Match failed.
+
 **/
 BOOLEAN
 IsKeyRegistered (
@@ -2151,21 +2415,21 @@ IsKeyRegistered (
 
   if ((RegisteredData->Key.ScanCode    != InputData->Key.ScanCode) ||
       (RegisteredData->Key.UnicodeChar != InputData->Key.UnicodeChar)) {
-    return FALSE;  
-  }      
-  
+    return FALSE;
+  }
+
   //
   // Assume KeyShiftState/KeyToggleState = 0 in Registered key data means these state could be ignored.
   //
   if (RegisteredData->KeyState.KeyShiftState != 0 &&
       RegisteredData->KeyState.KeyShiftState != InputData->KeyState.KeyShiftState) {
-    return FALSE;    
-  }   
+    return FALSE;
+  }
   if (RegisteredData->KeyState.KeyToggleState != 0 &&
       RegisteredData->KeyState.KeyToggleState != InputData->KeyState.KeyToggleState) {
-    return FALSE;    
-  }     
-  
+    return FALSE;
+  }
+
   return TRUE;
 
 }
@@ -2175,7 +2439,7 @@ IsKeyRegistered (
 
   @param  Event    The event that be signalled when any key has been stroked.
   @param  Context  Pointer of the protocol EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL.
-  
+
 **/
 VOID
 EFIAPI
@@ -2183,22 +2447,22 @@ BiosKeyboardWaitForKeyEx (
   IN  EFI_EVENT  Event,
   IN  VOID       *Context
   )
-{  
+{
   BIOS_KEYBOARD_DEV                     *BiosKeyboardPrivate;
-  
-  BiosKeyboardPrivate = TEXT_INPUT_EX_BIOS_KEYBOARD_DEV_FROM_THIS (Context); 
+
+  BiosKeyboardPrivate = TEXT_INPUT_EX_BIOS_KEYBOARD_DEV_FROM_THIS (Context);
   BiosKeyboardWaitForKey (Event, &BiosKeyboardPrivate->SimpleTextIn);
 
 }
 
 /**
   Reset the input device and optionaly run diagnostics
- 
+
   @param  This                  Protocol instance pointer.
   @param  ExtendedVerification  Driver may perform diagnostics on reset.
 
   @retval EFI_SUCCESS           The device was reset.
-  @retval EFI_DEVICE_ERROR      The device is not functioning properly and could 
+  @retval EFI_DEVICE_ERROR      The device is not functioning properly and could
                                 not be reset.
 
 **/
@@ -2209,42 +2473,44 @@ BiosKeyboardResetEx (
   IN BOOLEAN                            ExtendedVerification
   )
 {
+DBG("BiosKeyboardResetEx -> Enter\n");
   BIOS_KEYBOARD_DEV                     *BiosKeyboardPrivate;
   EFI_STATUS                            Status;
   EFI_TPL                               OldTpl;
-  
-  BiosKeyboardPrivate = TEXT_INPUT_EX_BIOS_KEYBOARD_DEV_FROM_THIS (This); 
+
+  BiosKeyboardPrivate = TEXT_INPUT_EX_BIOS_KEYBOARD_DEV_FROM_THIS (This);
 
   Status = BiosKeyboardPrivate->SimpleTextIn.Reset (
-                                               &BiosKeyboardPrivate->SimpleTextIn, 
+                                               &BiosKeyboardPrivate->SimpleTextIn,
                                                ExtendedVerification
                                                );
   if (EFI_ERROR (Status)) {
+DBG("BiosKeyboardResetEx -> Leave EFI_DEVICE_ERROR\n");
     return EFI_DEVICE_ERROR;
   }
 
   OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
 
   gBS->RestoreTPL (OldTpl);
-  
-  return EFI_SUCCESS;
 
+DBG("BiosKeyboardResetEx -> Leave sucess\n");
+  return EFI_SUCCESS;
 }
 
 /**
-  Reads the next keystroke from the input device. The WaitForKey Event can 
+  Reads the next keystroke from the input device. The WaitForKey Event can
   be used to test for existance of a keystroke via WaitForEvent () call.
 
   @param  This         Protocol instance pointer.
-  @param  KeyData      A pointer to a buffer that is filled in with the keystroke 
+  @param  KeyData      A pointer to a buffer that is filled in with the keystroke
                        state data for the key that was pressed.
-  
+
   @retval  EFI_SUCCESS           The keystroke information was returned.
   @retval  EFI_NOT_READY         There was no keystroke data availiable.
-  @retval  EFI_DEVICE_ERROR      The keystroke information was not returned due to 
+  @retval  EFI_DEVICE_ERROR      The keystroke information was not returned due to
                                  hardware errors.
-  @retval  EFI_INVALID_PARAMETER KeyData is NULL.                        
-    
+  @retval  EFI_INVALID_PARAMETER KeyData is NULL.
+
 **/
 EFI_STATUS
 EFIAPI
@@ -2258,27 +2524,27 @@ BiosKeyboardReadKeyStrokeEx (
   if (KeyData == NULL) {
     return EFI_INVALID_PARAMETER;
   }
-  
+
   BiosKeyboardPrivate = TEXT_INPUT_EX_BIOS_KEYBOARD_DEV_FROM_THIS (This);
 
   return KeyboardReadKeyStrokeWorker (BiosKeyboardPrivate, KeyData);
-  
+
 }
 
 /**
   Set certain state for the input device.
 
   @param  This              Protocol instance pointer.
-  @param  KeyToggleState    A pointer to the EFI_KEY_TOGGLE_STATE to set the 
+  @param  KeyToggleState    A pointer to the EFI_KEY_TOGGLE_STATE to set the
                             state for the input device.
 
   @retval EFI_SUCCESS           The device state was set successfully.
-  @retval EFI_DEVICE_ERROR      The device is not functioning correctly and could 
+  @retval EFI_DEVICE_ERROR      The device is not functioning correctly and could
                                 not have the setting adjusted.
   @retval EFI_UNSUPPORTED       The device does not have the ability to set its state.
-  @retval EFI_INVALID_PARAMETER KeyToggleState is NULL.                       
+  @retval EFI_INVALID_PARAMETER KeyToggleState is NULL.
 
-**/   
+**/
 EFI_STATUS
 EFIAPI
 BiosKeyboardSetState (
@@ -2336,7 +2602,7 @@ BiosKeyboardSetState (
   if (EFI_ERROR (Status)) {
     Status = EFI_DEVICE_ERROR;
     goto Done;
-  }  
+  }
   Status = KeyboardWaitForValue (BiosKeyboardPrivate, 0xfa, KEYBOARD_WAITFORVALUE_TIMEOUT);
   if (EFI_ERROR (Status)) {
      Status = EFI_DEVICE_ERROR;
@@ -2346,7 +2612,7 @@ BiosKeyboardSetState (
   if (EFI_ERROR (Status)) {
      Status = EFI_DEVICE_ERROR;
      goto Done;
-  }  
+  }
   //
   // Call Legacy BIOS Protocol to set whatever is necessary
   //
@@ -2368,18 +2634,18 @@ Done:
   Register a notification function for a particular keystroke for the input device.
 
   @param  This                    Protocol instance pointer.
-  @param  KeyData                 A pointer to a buffer that is filled in with the keystroke 
+  @param  KeyData                 A pointer to a buffer that is filled in with the keystroke
                                   information data for the key that was pressed.
-  @param  KeyNotificationFunction Points to the function to be called when the key 
-                                  sequence is typed specified by KeyData.                        
-  @param  NotifyHandle            Points to the unique handle assigned to the registered notification.                          
+  @param  KeyNotificationFunction Points to the function to be called when the key
+                                  sequence is typed specified by KeyData.
+  @param  NotifyHandle            Points to the unique handle assigned to the registered notification.
 
-  
+
   @retval EFI_SUCCESS             The notification function was registered successfully.
   @retval EFI_OUT_OF_RESOURCES    Unable to allocate resources for necesssary data structures.
   @retval EFI_INVALID_PARAMETER   KeyData or NotifyHandle is NULL.
-                                                  
-**/   
+
+**/
 EFI_STATUS
 EFIAPI
 BiosKeyboardRegisterKeyNotify (
@@ -2394,7 +2660,7 @@ BiosKeyboardRegisterKeyNotify (
   EFI_TPL                               OldTpl;
   BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY    *NewNotify;
   LIST_ENTRY                            *Link;
-  BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY    *CurrentNotify;  
+  BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY    *CurrentNotify;
 
   if (KeyData == NULL || NotifyHandle == NULL || KeyNotificationFunction == NULL) {
     return EFI_INVALID_PARAMETER;
@@ -2412,24 +2678,27 @@ BiosKeyboardRegisterKeyNotify (
   //
   for (Link = BiosKeyboardPrivate->NotifyList.ForwardLink; Link != &BiosKeyboardPrivate->NotifyList; Link = Link->ForwardLink) {
     CurrentNotify = CR (
-                      Link, 
-                      BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY, 
-                      NotifyEntry, 
+                      Link,
+                      BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY,
+                      NotifyEntry,
                       BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE
                       );
-    if (IsKeyRegistered (&CurrentNotify->KeyData, KeyData)) { 
+    if (IsKeyRegistered (&CurrentNotify->KeyData, KeyData)) {
+//DBG("BiosKbd CurrentNotify ok key ScanCode=%x, Uchar=%x, ShiftState=%x, ToogleState=%x\n", CurrentNotify->KeyData.Key.ScanCode, CurrentNotify->KeyData.Key.UnicodeChar, CurrentNotify->KeyData.KeyState.KeyShiftState, CurrentNotify->KeyData.KeyState.KeyToggleState);
       if (CurrentNotify->KeyNotificationFn == KeyNotificationFunction) {
-        *NotifyHandle = CurrentNotify->NotifyHandle;        
+        *NotifyHandle = CurrentNotify->NotifyHandle;
         Status = EFI_SUCCESS;
         goto Exit;
       }
-    }  
+    }else{
+//DBG("BiosKbd CurrentNotify !ok key ScanCode=%x, Uchar=%x, ShiftState=%x, ToogleState=%x\n", CurrentNotify->KeyData.Key.ScanCode, CurrentNotify->KeyData.Key.UnicodeChar, CurrentNotify->KeyData.KeyState.KeyShiftState, CurrentNotify->KeyData.KeyState.KeyToggleState);
+    }
   }
 
   //
   // Allocate resource to save the notification function
   //
-  
+
   NewNotify = (BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY *) AllocateZeroPool (sizeof (BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY));
   if (NewNotify == NULL) {
     Status = EFI_OUT_OF_RESOURCES;
@@ -2442,27 +2711,27 @@ BiosKeyboardRegisterKeyNotify (
   CopyMem (&NewNotify->KeyData, KeyData, sizeof (EFI_KEY_DATA));
   InsertTailList (&BiosKeyboardPrivate->NotifyList, &NewNotify->NotifyEntry);
 
-  *NotifyHandle                = NewNotify->NotifyHandle;  
+  *NotifyHandle                = NewNotify->NotifyHandle;
   Status                       = EFI_SUCCESS;
-  
+
 Exit:
   //
   // Leave critical section and return
   //
   gBS->RestoreTPL (OldTpl);
-  return Status;  
+  return Status;
 }
 
 /**
   Remove a registered notification function from a particular keystroke.
 
-  @param  This                 Protocol instance pointer.    
+  @param  This                 Protocol instance pointer.
   @param  NotificationHandle   The handle of the notification function being unregistered.
-  
+
   @retval EFI_SUCCESS             The notification function was unregistered successfully.
   @retval EFI_INVALID_PARAMETER   The NotificationHandle is invalid.
-                              
-**/   
+
+**/
 EFI_STATUS
 EFIAPI
 BiosKeyboardUnregisterKeyNotify (
@@ -2485,33 +2754,33 @@ BiosKeyboardUnregisterKeyNotify (
 
   if (((BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY *) NotificationHandle)->Signature != BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE) {
     return EFI_INVALID_PARAMETER;
-  } 
-  
+  }
+
   BiosKeyboardPrivate = TEXT_INPUT_EX_BIOS_KEYBOARD_DEV_FROM_THIS (This);
-  
+
   //
   // Enter critical section
   //
-  OldTpl = gBS->RaiseTPL (TPL_NOTIFY);  
+  OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
 
   for (Link = BiosKeyboardPrivate->NotifyList.ForwardLink; Link != &BiosKeyboardPrivate->NotifyList; Link = Link->ForwardLink) {
     CurrentNotify = CR (
-                      Link, 
-                      BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY, 
-                      NotifyEntry, 
+                      Link,
+                      BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY,
+                      NotifyEntry,
                       BIOS_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE
-                      );    
+                      );
     if (CurrentNotify->NotifyHandle == NotificationHandle) {
       //
       // Remove the notification function from NotifyList and free resources
       //
-      RemoveEntryList (&CurrentNotify->NotifyEntry);      
+      RemoveEntryList (&CurrentNotify->NotifyEntry);
 
       Status = EFI_SUCCESS;
       goto Exit;
     }
   }
-  
+
   //
   // Can not find the specified Notification Handle
   //

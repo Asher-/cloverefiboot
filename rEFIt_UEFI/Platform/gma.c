@@ -698,7 +698,7 @@ static struct gma_gpu_t KnownGPUS[] = {
   { 0x191B, "Intel HD Graphics 530"          }, // Mobile - MacBookPro13,3
   { 0x191D, "Intel HD Graphics P530"         }, // Workstation, Mobile Workstation
   { 0x191E, "Intel HD Graphics 515"          }, // Mobile - MacBook9,1
-  { 0x1921, "Intel HD Graphics 520"          }, // 
+  { 0x1921, "Intel HD Graphics 520"          }, //
   //GT2f
   { 0x1913, "Intel Skylake GT2f"             }, //
   { 0x1915, "Intel Skylake GT2f"             }, //
@@ -743,6 +743,7 @@ static struct gma_gpu_t KnownGPUS[] = {
   { 0x5916, "Intel HD Graphics 620"          }, // Mobile
   { 0x591A, "Intel HD Graphics P630"         }, // Server
   { 0x591B, "Intel HD Graphics 630"          }, // Mobile - MacBookPro14,3
+  { 0x591C, "Intel Kaby Lake GT2"            }, //
   { 0x591D, "Intel HD Graphics P630"         }, // Workstation, Mobile Workstation
   { 0x591E, "Intel HD Graphics 615"          }, // Mobile - MacBook10,1
   //GT2F
@@ -799,7 +800,7 @@ static struct gma_gpu_t KnownGPUS[] = {
   { 0x5A52, "Intel Cannonlake GT2"           }, //
   { 0x5A54, "Intel Cannonlake GT2"           }, //
 
-    
+
   //============== 11th generation ===========
   //----------------Ice Lake------------------
   //GT0.5
@@ -1246,7 +1247,7 @@ BOOLEAN setup_gma_devprop(pci_dt_t *gma_dev)
   }
 
   if (gma_dev && !gma_dev->used) {
-    device = devprop_add_device_pci(string, gma_dev);
+    device = devprop_add_device_pci(string, gma_dev, NULL);
     gma_dev->used = TRUE;
   }
 
@@ -2110,7 +2111,7 @@ BOOLEAN setup_gma_devprop(pci_dt_t *gma_dev)
           break;
       }
       break;
-	  
+
       //----------------ValleyView----------------
     case 0x0F30: // "Intel HD Graphics"               // Bay Trail
     case 0x0F31: // "Intel HD Graphics"               // Bay Trail
@@ -2466,6 +2467,7 @@ BOOLEAN setup_gma_devprop(pci_dt_t *gma_dev)
     case 0x5916: // "Intel HD Graphics 620"           // Mobile
     case 0x591A: // "Intel HD Graphics P630"          // Server
     case 0x591B: // "Intel HD Graphics 630"           // Mobile - MacBookPro14,3
+    case 0x591C: // "Intel Kaby Lake GT2"             //
     case 0x591D: // "Intel HD Graphics P630"          // Workstation, Mobile Workstation
     case 0x591E: // "Intel HD Graphics 615"           // Mobile - MacBook10,1
       //GT2F
@@ -2696,10 +2698,10 @@ BOOLEAN setup_gma_devprop(pci_dt_t *gma_dev)
       DBG("  Intel card id=%x unsupported, please report to the clover thread\n", gma_dev->device_id);
       return FALSE;
   }
-  
+
 #if DEBUG_GMA == 2
   gBS->Stall(5000000);
 #endif
-  
+
   return TRUE;
 }

@@ -87,6 +87,13 @@ EMU_VARIABLE_CONTROL_PROTOCOL *gEmuVariableControl = NULL;
 extern VOID HelpRefit(VOID);
 extern VOID AboutRefit(VOID);
 extern BOOLEAN BooterPatch(IN UINT8 *BooterData, IN UINT64 BooterSize, LOADER_ENTRY *Entry);
+extern UINTN            ThemesNum;
+extern CHAR16           *ThemesList[];
+extern UINTN            ConfigsNum;
+extern CHAR16           *ConfigsList[];
+extern UINTN            DsdtsNum;
+extern CHAR16           *DsdtsList[];
+
 
 static EFI_STATUS LoadEFIImageList(IN EFI_DEVICE_PATH **DevicePaths,
                                     IN CHAR16 *ImageTitle,
@@ -495,6 +502,7 @@ static VOID StartLoader(IN LOADER_ENTRY *Entry)
   EFI_LOADED_IMAGE        *LoadedImage = NULL;
   CHAR8                   *InstallerVersion;
   TagPtr                  dict = NULL;
+  UINTN                   i;
 
 //  DBG("StartLoader() start\n");
   DbgHeader("StartLoader");
@@ -520,18 +528,39 @@ static VOID StartLoader(IN LOADER_ENTRY *Entry)
       DBG(" - [!] LoadUserSettings failed: %r\n", Status);
     }
   }
-
-  DBG("Finally: ExternalClock=%ldMHz BusSpeed=%ldkHz CPUFreq=%ldMHz", 
-  				DivU64x32(gCPUStructure.ExternalClock, kilo), 
-  				DivU64x32(gCPUStructure.FSBFrequency, kilo), 
-				gCPUStructure.MaxSpeed);
-				if (gSettings.QPI) {			
-				  DBG(" QPI: hw.busfrequency=%ldHz\n", MultU64x32(gSettings.QPI, Mega));
-				} else {
-				  // to match the value of hw.busfrequency in the terminal
-				  DBG(" PIS: hw.busfrequency=%ldHz\n", MultU64x32(LShiftU64(DivU64x32(gCPUStructure.ExternalClock, kilo), 2), Mega));
-				}
-
+  
+  DBG("Finally: ExternalClock=%ldMHz BusSpeed=%ldkHz CPUFreq=%ldMHz",
+  				DivU64x32(gCPUStructure.ExternalClock + kilo - 1, kilo),
+  				DivU64x32(gCPUStructure.FSBFrequency + kilo - 1, kilo),
+          gCPUStructure.MaxSpeed);
+  if (gSettings.QPI) {
+    DBG(" QPI: hw.busfrequency=%ldHz\n", MultU64x32(gSettings.QPI, Mega));
+  } else {
+    // to match the value of hw.busfrequency in the terminal
+    DBG(" PIS: hw.busfrequency=%ldHz\n", MultU64x32(LShiftU64(DivU64x32(gCPUStructure.ExternalClock + kilo - 1, kilo), 2), Mega));
+  }
+  
+  //Free memory
+  for (i = 0; i < ThemesNum; i++) {
+    if (ThemesList[i]) {
+      FreePool(ThemesList[i]);
+      ThemesList[i] = NULL;
+    }
+  }
+  for (i = 0; i < ConfigsNum; i++) {
+    if (ConfigsList[i]) {
+      FreePool(ConfigsList[i]);
+      ConfigsList[i] = NULL;
+    }
+  }
+  for (i = 0; i < DsdtsNum; i++) {
+    if (DsdtsList[i]) {
+      FreePool(DsdtsList[i]);
+      DsdtsList[i] = NULL;
+    }
+  }
+  FreeMenu(&OptionMenu);
+  
   //DumpKernelAndKextPatches(Entry->KernelAndKextPatches);
 
   // Load image into memory (will be started later)
@@ -587,7 +616,8 @@ static VOID StartLoader(IN LOADER_ENTRY *Entry)
               AsciiStrnCmp(InstallerVersion, "10.10", 5) &&
               AsciiStrnCmp(InstallerVersion, "10.11", 5) &&
               AsciiStrnCmp(InstallerVersion, "10.12", 5) &&
-              AsciiStrnCmp(InstallerVersion, "10.13", 5)) {   //xxx
+              AsciiStrnCmp(InstallerVersion, "10.13", 5) &&
+              AsciiStrnCmp(InstallerVersion, "10.14", 5)) {   //xxx
             InstallerVersion = NULL; // flag known version was not found
           }
           if (InstallerVersion != NULL) { // known version was found in image
@@ -1781,7 +1811,7 @@ UINT8 *APFSContainer_Support(VOID) {
     return APFSUUIDBank;
 }
 
-//System / Recovery version filler
+//System / Install / Recovery version filler
 CHAR16 *SystemVersionPlist       = L"\\System\\Library\\CoreServices\\SystemVersion.plist";
 CHAR16 *ServerVersionPlist       = L"\\System\\Library\\CoreServices\\ServerVersion.plist";
 CHAR16 *InstallVersionPlist      = L"\\macOS Install Data\\Locked Files\\Boot Files\\SystemVersion.plist";
@@ -2072,7 +2102,8 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
     Status = LoadUserSettings(SelfRootDir, L"config", &gConfigDict[0]);
       DBG("%s\\config.plist%s loaded: %r\n", OEMPath, EFI_ERROR(Status) ? L" not" : L"", Status);
   }
-  gSettings.ConfigName = PoolPrint(L"%s%s%s",
+  UnicodeSPrint(gSettings.ConfigName, 64, L"%s%s%s",
+/*  gSettings.ConfigName = PoolPrint(L"%s%s%s", */
                                    gConfigDict[0] ? L"config": L"",
                                    (gConfigDict[0] && gConfigDict[1]) ? L" + ": L"",
                                    !gConfigDict[1] ? L"": (ConfName ? ConfName : L"Load Options"));
@@ -2244,7 +2275,7 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
     case CPU_MODEL_WESTMERE:// Core i7 LGA1366, Six-core, "Westmere", "Gulftown", 32nm
     case CPU_MODEL_NEHALEM_EX:// Core i7, Nehalem-Ex Xeon, "Beckton"
     case CPU_MODEL_WESTMERE_EX:// Core i7, Nehalem-Ex Xeon, "Eagleton"
-      gCPUStructure.ExternalClock = (UINT32)DivU64x32(gCPUStructure.FSBFrequency, kilo);
+      gCPUStructure.ExternalClock = (UINT32)DivU64x32(gCPUStructure.FSBFrequency + kilo -1, kilo);
       //DBG(" Read TSC ExternalClock: %d MHz\n", (INT32)(DivU64x32(gCPUStructure.ExternalClock, kilo)));
       break;
     default:
@@ -2252,7 +2283,7 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
 	  
       // for sandy bridge or newer
       // to match ExternalClock 25 MHz like real mac, divide FSBFrequency by 4
-      gCPUStructure.ExternalClock = (UINT32)DivU64x32(gCPUStructure.FSBFrequency, kilo) / 4;
+      gCPUStructure.ExternalClock = ((UINT32)DivU64x32(gCPUStructure.FSBFrequency + kilo - 1, kilo) + 3) / 4;
       //DBG(" Corrected TSC ExternalClock: %d MHz\n", (INT32)(DivU64x32(gCPUStructure.ExternalClock, kilo)));
       break;
   }
@@ -2273,6 +2304,7 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
       }
     }
   }
+  
 
   if (gSettings.QEMU) {
 //    UINT64 Msrflex = 0ULL;
@@ -2292,7 +2324,7 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
  */
     gCPUStructure.FSBFrequency = DivU64x32(MultU64x32(gCPUStructure.CPUFrequency, 10),
                                            (gCPUStructure.MaxRatio == 0) ? 1 : gCPUStructure.MaxRatio);
-    gCPUStructure.ExternalClock = (UINT32)DivU64x32(gCPUStructure.FSBFrequency, kilo);
+    gCPUStructure.ExternalClock = (UINT32)DivU64x32(gCPUStructure.FSBFrequency + kilo - 1, kilo);
   }
 
   dropDSM = 0xFFFF; //by default we drop all OEM _DSM. They have no sense for us.
@@ -2334,7 +2366,8 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
     FreePool(FirstMessage);
   }
 
-  GetListOfACPI();//###
+  GetListOfDsdts(); //only after GetUserSettings
+  GetListOfACPI(); //ssdt and other tables
 
   AfterTool = FALSE;
   gGuiIsReady = TRUE;
@@ -2383,7 +2416,11 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
         FreeMenu(&OptionMenu);
       }
       gThemeChanged = FALSE;
-      DBG("Choosing theme %s\n", GlobalConfig.Theme);
+      if (GlobalConfig.Theme) {
+        DBG("Chosen theme %s\n", GlobalConfig.Theme);
+      } else {
+        DBG("Chosen embedded theme\n");
+      }
 //      DBG("initial boot-args=%a\n", gSettings.BootArgs);
       //now it is a time to set RtVariables
       SetVariablesFromNvram();

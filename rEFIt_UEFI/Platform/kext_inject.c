@@ -25,26 +25,26 @@ LIST_ENTRY gKextList = INITIALIZE_LIST_HEAD_VARIABLE (gKextList);
 ////////////////////
 EFI_STATUS EFIAPI ThinFatFile(IN OUT UINT8 **binary, IN OUT UINTN *length, IN cpu_type_t archCpuType)
 {
-	UINT32 nfat, swapped, size = 0;
-	FAT_HEADER *fhp = (FAT_HEADER *)*binary;
-	FAT_ARCH   *fap = (FAT_ARCH *)(*binary + sizeof(FAT_HEADER));
-	cpu_type_t fapcputype;
-	UINT32 fapoffset;
-	UINT32 fapsize;
+  UINT32 nfat, swapped, size = 0;
+  FAT_HEADER *fhp = (FAT_HEADER *)*binary;
+  FAT_ARCH   *fap = (FAT_ARCH *)(*binary + sizeof(FAT_HEADER));
+  cpu_type_t fapcputype;
+  UINT32 fapoffset;
+  UINT32 fapsize;
   
   swapped = 0;
-	if (fhp->magic == FAT_MAGIC) {
-		nfat = fhp->nfat_arch;
-	} else if (fhp->magic == FAT_CIGAM) {
-		nfat = SwapBytes32(fhp->nfat_arch);
-		swapped = 1;
+  if (fhp->magic == FAT_MAGIC) {
+  	nfat = fhp->nfat_arch;
+  } else if (fhp->magic == FAT_CIGAM) {
+  	nfat = SwapBytes32(fhp->nfat_arch);
+  	swapped = 1;
     //already thin
-	} else if (fhp->magic == THIN_X64){
+  } else if (fhp->magic == THIN_X64){
     if (archCpuType == CPU_TYPE_X86_64) {
       return EFI_SUCCESS;
     }
     return EFI_NOT_FOUND;
-	} else if (fhp->magic == THIN_IA32){
+  } else if (fhp->magic == THIN_IA32){
     if (archCpuType == CPU_TYPE_I386) {
       return EFI_SUCCESS;
     }
@@ -54,25 +54,25 @@ EFI_STATUS EFIAPI ThinFatFile(IN OUT UINT8 **binary, IN OUT UINTN *length, IN cp
     return EFI_NOT_FOUND;
   }
   
-	for (; nfat > 0; nfat--, fap++) {
-		if (swapped) {
-			fapcputype = SwapBytes32(fap->cputype);
-			fapoffset = SwapBytes32(fap->offset);
-			fapsize = SwapBytes32(fap->size);
-		} else {
-			fapcputype = fap->cputype;
-			fapoffset = fap->offset;
-			fapsize = fap->size;
-		}
-		if (fapcputype == archCpuType) {
-			*binary = (*binary + fapoffset);
-			size = fapsize;
-			break;
-		}
-	}
-	if (length != 0) *length = size;
+  for (; nfat > 0; nfat--, fap++) {
+  	if (swapped) {
+  		fapcputype = SwapBytes32(fap->cputype);
+  		fapoffset = SwapBytes32(fap->offset);
+  		fapsize = SwapBytes32(fap->size);
+  	} else {
+  		fapcputype = fap->cputype;
+  		fapoffset = fap->offset;
+  		fapsize = fap->size;
+  	}
+  	if (fapcputype == archCpuType) {
+  		*binary = (*binary + fapoffset);
+  		size = fapsize;
+  		break;
+  	}
+  }
+  if (length != 0) *length = size;
   
-	return EFI_SUCCESS;
+  return EFI_SUCCESS;
 }
 
 extern VOID KernelAndKextPatcherInit(IN LOADER_ENTRY *Entry);
@@ -80,24 +80,24 @@ extern VOID AnyKextPatch(UINT8 *Driver, UINT32 DriverSize, CHAR8 *InfoPlist, UIN
 
 EFI_STATUS EFIAPI LoadKext(IN LOADER_ENTRY *Entry, IN EFI_FILE *RootDir, IN CHAR16 *FileName, IN cpu_type_t archCpuType, IN OUT _DeviceTreeBuffer *kext)
 {
-	EFI_STATUS	Status;
-	UINT8*      infoDictBuffer = NULL;
-	UINTN       infoDictBufferLength = 0;
-	UINT8*      executableFatBuffer = NULL;
-	UINT8*      executableBuffer = NULL;
-	UINTN       executableBufferLength = 0;
-	CHAR8*      bundlePathBuffer = NULL;
-	UINTN       bundlePathBufferLength = 0;
-	CHAR16      TempName[256];
-	CHAR16      Executable[256];
-	TagPtr      dict = NULL;
-	TagPtr      prop = NULL;
+  EFI_STATUS	Status;
+  UINT8*      infoDictBuffer = NULL;
+  UINTN       infoDictBufferLength = 0;
+  UINT8*      executableFatBuffer = NULL;
+  UINT8*      executableBuffer = NULL;
+  UINTN       executableBufferLength = 0;
+  CHAR8*      bundlePathBuffer = NULL;
+  UINTN       bundlePathBufferLength = 0;
+  CHAR16      TempName[256];
+  CHAR16      Executable[256];
+  TagPtr      dict = NULL;
+  TagPtr      prop = NULL;
   BOOLEAN     NoContents = FALSE;
   _BooterKextFileInfo *infoAddr = NULL;
   
-	UnicodeSPrint(TempName, 512, L"%s\\%s", FileName, L"Contents\\Info.plist");
-	Status = egLoadFile(RootDir, TempName, &infoDictBuffer, &infoDictBufferLength);
-	if (EFI_ERROR(Status)) {
+  UnicodeSPrint(TempName, 512, L"%s\\%s", FileName, L"Contents\\Info.plist");
+  Status = egLoadFile(RootDir, TempName, &infoDictBuffer, &infoDictBufferLength);
+  if (EFI_ERROR(Status)) {
     //try to find a planar kext, without Contents
     UnicodeSPrint(TempName, 512, L"%s\\%s", FileName, L"Info.plist");
     Status = egLoadFile(RootDir, TempName, &infoDictBuffer, &infoDictBufferLength);
@@ -106,7 +106,7 @@ EFI_STATUS EFIAPI LoadKext(IN LOADER_ENTRY *Entry, IN EFI_FILE *RootDir, IN CHAR
       return EFI_NOT_FOUND;
     }
     NoContents = TRUE;
-	}
+  }
   if(ParseXML((CHAR8*)infoDictBuffer,&dict,(UINT32)infoDictBufferLength)!=0) {
     FreePool(infoDictBuffer);
     MsgLog("Failed to load extra kext (failed to parse Info.plist): %s\n", FileName);
@@ -153,58 +153,58 @@ EFI_STATUS EFIAPI LoadKext(IN LOADER_ENTRY *Entry, IN EFI_FILE *RootDir, IN CHAR
   FreePool(infoDictBuffer);
   FreePool(executableFatBuffer);
   FreePool(bundlePathBuffer);
-	
+  
   return EFI_SUCCESS;
 }
 
 EFI_STATUS EFIAPI AddKext(IN LOADER_ENTRY *Entry, IN EFI_FILE *RootDir, IN CHAR16 *FileName, IN cpu_type_t archCpuType)
 {
-	EFI_STATUS	Status;
-	KEXT_ENTRY	*KextEntry;
+  EFI_STATUS	Status;
+  KEXT_ENTRY	*KextEntry;
   
-	KextEntry = AllocatePool (sizeof(KEXT_ENTRY));
-	KextEntry->Signature = KEXT_SIGNATURE;
-	Status = LoadKext(Entry, RootDir, FileName, archCpuType, &KextEntry->kext);
-	if(EFI_ERROR(Status)) {
-		FreePool(KextEntry);
-	} else {
-		InsertTailList (&gKextList, &KextEntry->Link);
-	}
+  KextEntry = AllocatePool (sizeof(KEXT_ENTRY));
+  KextEntry->Signature = KEXT_SIGNATURE;
+  Status = LoadKext(Entry, RootDir, FileName, archCpuType, &KextEntry->kext);
+  if(EFI_ERROR(Status)) {
+  	FreePool(KextEntry);
+  } else {
+  	InsertTailList (&gKextList, &KextEntry->Link);
+  }
   
-	return Status;
+  return Status;
 }
 
 UINT32 GetListCount(LIST_ENTRY const* List)
 {
-	LIST_ENTRY		*Link;
-	UINT32			Count=0;
+  LIST_ENTRY		*Link;
+  UINT32			Count=0;
   
-	if(!IsListEmpty(List)) {
-		for (Link = List->ForwardLink; Link != List; Link = Link->ForwardLink)
-			Count++;
-	}
+  if(!IsListEmpty(List)) {
+  	for (Link = List->ForwardLink; Link != List; Link = Link->ForwardLink)
+  		Count++;
+  }
   
-	return Count;
+  return Count;
 }
 
 UINT32 GetKextCount()
 {
-	return (UINT32)GetListCount(&gKextList);
+  return (UINT32)GetListCount(&gKextList);
 }
 
 UINT32 GetKextsSize()
 {
-	LIST_ENTRY		*Link;
-	KEXT_ENTRY		*KextEntry;
-	UINT32			  kextsSize=0;
+  LIST_ENTRY		*Link;
+  KEXT_ENTRY		*KextEntry;
+  UINT32			  kextsSize=0;
   
-	if(!IsListEmpty(&gKextList)) {
-		for (Link = gKextList.ForwardLink; Link != &gKextList; Link = Link->ForwardLink) {
-			KextEntry = CR(Link, KEXT_ENTRY, Link, KEXT_SIGNATURE);
-			kextsSize += RoundPage(KextEntry->kext.length);
-		}
-	}
-	return kextsSize;
+  if(!IsListEmpty(&gKextList)) {
+  	for (Link = gKextList.ForwardLink; Link != &gKextList; Link = Link->ForwardLink) {
+  		KextEntry = CR(Link, KEXT_ENTRY, Link, KEXT_SIGNATURE);
+  		kextsSize += RoundPage(KextEntry->kext.length);
+  	}
+  }
+  return kextsSize;
 }
 
 VOID LoadPlugInKexts(IN LOADER_ENTRY *Entry, IN EFI_FILE *RootDir, IN CHAR16 *DirName, IN cpu_type_t archCpuType, IN BOOLEAN Force)
@@ -231,51 +231,51 @@ EFI_STATUS LoadKexts(IN LOADER_ENTRY *Entry)
 {
   //	EFI_STATUS              Status;
   //	REFIT_VOLUME            *Volume;
-	CHAR16                  *SrcDir = NULL;
-	//REFIT_DIR_ITER          KextIter;
-	//EFI_FILE_INFO           *KextFile;
-	REFIT_DIR_ITER          PlugInIter;
-	EFI_FILE_INFO           *PlugInFile;
-	CHAR16                  FileName[256];
-	CHAR16                  PlugIns[256];
+  CHAR16                  *SrcDir = NULL;
+  //REFIT_DIR_ITER          KextIter;
+  //EFI_FILE_INFO           *KextFile;
+  REFIT_DIR_ITER          PlugInIter;
+  EFI_FILE_INFO           *PlugInFile;
+  CHAR16                  FileName[256];
+  CHAR16                  PlugIns[256];
   CHAR16                  PlugInName[256];
-	CHAR16			*Arch = NULL;
-	CHAR16			*Ptr = NULL;
+  CHAR16			*Arch = NULL;
+  CHAR16			*Ptr = NULL;
 #if defined(MDE_CPU_X64)
-	cpu_type_t archCpuType=CPU_TYPE_X86_64;
+  cpu_type_t archCpuType=CPU_TYPE_X86_64;
 #else
-	cpu_type_t archCpuType=CPU_TYPE_I386;
+  cpu_type_t archCpuType=CPU_TYPE_I386;
 #endif
-	UINTN					mm_extra_size;
-	VOID					*mm_extra;
-	UINTN					extra_size;
-	VOID					*extra;
+  UINTN					mm_extra_size;
+  VOID					*mm_extra;
+  UINTN					extra_size;
+  VOID					*extra;
 
   SIDELOAD_KEXT *CurrentKext = NULL;
   SIDELOAD_KEXT *CurrentPlugInKext = NULL;
   SIDELOAD_KEXT *Next = NULL;
   
-	if (Entry == 0)/* || OSFLAG_ISUNSET(Entry->Flags, OSFLAG_WITHKEXTS) */ {
-		return EFI_NOT_STARTED;
-	}
+  if (Entry == 0)/* || OSFLAG_ISUNSET(Entry->Flags, OSFLAG_WITHKEXTS) */ {
+  	return EFI_NOT_STARTED;
+  }
   
-	// Make Arch point to the last appearance of "arch=" in LoadOptions (which is what boot.efi will use).
-	if (Entry->LoadOptions != NULL) {
-		for (Ptr = StrStr(Entry->LoadOptions, L"arch="); Ptr != NULL; Arch = Ptr + StrLen(L"arch="), Ptr = StrStr(Arch, L"arch="));
-	}
+  // Make Arch point to the last appearance of "arch=" in LoadOptions (which is what boot.efi will use).
+  if (Entry->LoadOptions != NULL) {
+  	for (Ptr = StrStr(Entry->LoadOptions, L"arch="); Ptr != NULL; Arch = Ptr + StrLen(L"arch="), Ptr = StrStr(Arch, L"arch="));
+  }
   
-	if (Arch != NULL && StrnCmp(Arch,L"x86_64",StrLen(L"x86_64")) == 0) {
-		archCpuType = CPU_TYPE_X86_64;
-	} else if (Arch != NULL && StrnCmp(Arch,L"i386",StrLen(L"i386")) == 0) {
-		archCpuType = CPU_TYPE_I386;
-	} else if (Entry->OSVersion != NULL) {
-	  UINT64 os_version = AsciiOSVersionToUint64(Entry->OSVersion);
-	  if (os_version >= AsciiOSVersionToUint64("10.8")) {
+  if (Arch != NULL && StrnCmp(Arch,L"x86_64",StrLen(L"x86_64")) == 0) {
+  	archCpuType = CPU_TYPE_X86_64;
+  } else if (Arch != NULL && StrnCmp(Arch,L"i386",StrLen(L"i386")) == 0) {
+  	archCpuType = CPU_TYPE_I386;
+  } else if (Entry->OSVersion != NULL) {
+    UINT64 os_version = AsciiOSVersionToUint64(Entry->OSVersion);
+    if (os_version >= AsciiOSVersionToUint64("10.8")) {
       archCpuType = CPU_TYPE_X86_64; // For OSVersion >= 10.8, only x86_64 exists
-	  } else if (os_version < AsciiOSVersionToUint64("10.7")) {
+    } else if (os_version < AsciiOSVersionToUint64("10.7")) {
       archCpuType = CPU_TYPE_I386; // For OSVersion < 10.7, use default of i386
-	  }
-	}
+    }
+  }
 
   // Force kexts to load
   if ((Entry->KernelAndKextPatches != NULL) &&
@@ -398,22 +398,22 @@ EFI_STATUS LoadKexts(IN LOADER_ENTRY *Entry)
     FreePool(SrcDir);
   }
 
-	// reserve space in the device tree
-	if (GetKextCount() > 0) {
-		mm_extra_size = GetKextCount() * (sizeof(DeviceTreeNodeProperty) + sizeof(_DeviceTreeBuffer));
-		mm_extra = AllocateZeroPool(mm_extra_size - sizeof(DeviceTreeNodeProperty));
-		/*Status =  */LogDataHub(&gEfiMiscSubClassGuid, L"mm_extra", mm_extra, (UINT32)(mm_extra_size - sizeof(DeviceTreeNodeProperty)));
-		extra_size = GetKextsSize();
-		extra = AllocateZeroPool(extra_size - sizeof(DeviceTreeNodeProperty) + EFI_PAGE_SIZE);
-		/*Status =  */LogDataHub(&gEfiMiscSubClassGuid, L"extra", extra, (UINT32)(extra_size - sizeof(DeviceTreeNodeProperty) + EFI_PAGE_SIZE));
-		// MsgLog("count: %d		\n", GetKextCount());
-		// MsgLog("mm_extra_size: %d		\n", mm_extra_size);
-		// MsgLog("extra_size: %d		 \n", extra_size);
-		// MsgLog("offset: %d			 \n", extra_size - sizeof(DeviceTreeNodeProperty) + EFI_PAGE_SIZE);
+  // reserve space in the device tree
+  if (GetKextCount() > 0) {
+  	mm_extra_size = GetKextCount() * (sizeof(DeviceTreeNodeProperty) + sizeof(_DeviceTreeBuffer));
+  	mm_extra = AllocateZeroPool(mm_extra_size - sizeof(DeviceTreeNodeProperty));
+  	/*Status =  */LogDataHub(&gEfiMiscSubClassGuid, L"mm_extra", mm_extra, (UINT32)(mm_extra_size - sizeof(DeviceTreeNodeProperty)));
+  	extra_size = GetKextsSize();
+  	extra = AllocateZeroPool(extra_size - sizeof(DeviceTreeNodeProperty) + EFI_PAGE_SIZE);
+  	/*Status =  */LogDataHub(&gEfiMiscSubClassGuid, L"extra", extra, (UINT32)(extra_size - sizeof(DeviceTreeNodeProperty) + EFI_PAGE_SIZE));
+  	// MsgLog("count: %d		\n", GetKextCount());
+  	// MsgLog("mm_extra_size: %d		\n", mm_extra_size);
+  	// MsgLog("extra_size: %d		 \n", extra_size);
+  	// MsgLog("offset: %d			 \n", extra_size - sizeof(DeviceTreeNodeProperty) + EFI_PAGE_SIZE);
     //no more needed
     FreePool(mm_extra);
     FreePool(extra);
-	}
+  }
 
   //No more InjectKextList needed. Will free the list
   while (InjectKextList) {
@@ -433,7 +433,7 @@ EFI_STATUS LoadKexts(IN LOADER_ENTRY *Entry)
     FreePool(InjectKextList);
     InjectKextList = CurrentKext;
   }
-	return EFI_SUCCESS;
+  return EFI_SUCCESS;
 }
 
 
@@ -442,98 +442,98 @@ EFI_STATUS LoadKexts(IN LOADER_ENTRY *Entry)
 ////////////////////
 EFI_STATUS InjectKexts(/*IN EFI_MEMORY_DESCRIPTOR *Desc*/ IN UINT32 deviceTreeP, IN UINT32* deviceTreeLength, LOADER_ENTRY *Entry)
 {
-	UINT8					                    *dtEntry = (UINT8*)(UINTN) deviceTreeP;
-	UINTN					                    dtLength = (UINTN) *deviceTreeLength;
+  UINT8					                    *dtEntry = (UINT8*)(UINTN) deviceTreeP;
+  UINTN					                    dtLength = (UINTN) *deviceTreeLength;
   
-	DTEntry					                  platformEntry;
-	DTEntry					                  memmapEntry;
-	CHAR8 					                  *ptr;
-	struct OpaqueDTPropertyIterator   OPropIter;
-	DTPropertyIterator		            iter = &OPropIter;
-	DeviceTreeNodeProperty	          *prop = NULL;
+  DTEntry					                  platformEntry;
+  DTEntry					                  memmapEntry;
+  CHAR8 					                  *ptr;
+  struct OpaqueDTPropertyIterator   OPropIter;
+  DTPropertyIterator		            iter = &OPropIter;
+  DeviceTreeNodeProperty	          *prop = NULL;
   
-	UINT8					                    *infoPtr = 0;
-	UINT8					                    *extraPtr = 0;
-	UINT8					                    *drvPtr = 0;
-	UINTN					                    offset = 0;
+  UINT8					                    *infoPtr = 0;
+  UINT8					                    *extraPtr = 0;
+  UINT8					                    *drvPtr = 0;
+  UINTN					                    offset = 0;
   
-	LIST_ENTRY				                *Link;
-	KEXT_ENTRY				                *KextEntry;
-	UINTN					                    KextBase = 0;
-	_DeviceTreeBuffer		              *mm;
-	_BooterKextFileInfo		            *drvinfo;
-	
-	UINT32					                  KextCount;
-	UINTN					                    Index;
-	
+  LIST_ENTRY				                *Link;
+  KEXT_ENTRY				                *KextEntry;
+  UINTN					                    KextBase = 0;
+  _DeviceTreeBuffer		              *mm;
+  _BooterKextFileInfo		            *drvinfo;
   
-	DBG_RT(Entry, "\nInjectKexts: ");
-	KextCount = GetKextCount();
-	if (KextCount == 0) {
-		DBG_RT(Entry, "no kexts to inject.\nPausing 5 secs ...\n");
+  UINT32					                  KextCount;
+  UINTN					                    Index;
+  
+  
+  DBG_RT(Entry, "\nInjectKexts: ");
+  KextCount = GetKextCount();
+  if (KextCount == 0) {
+  	DBG_RT(Entry, "no kexts to inject.\nPausing 5 secs ...\n");
     if (Entry->KernelAndKextPatches->KPDebug) {
       gBS->Stall(5000000);
     }
-		return EFI_NOT_FOUND;
-	}
-	DBG_RT(Entry, "%d kexts ...\n", KextCount);
+  	return EFI_NOT_FOUND;
+  }
+  DBG_RT(Entry, "%d kexts ...\n", KextCount);
   
-	// kextsBase = Desc->PhysicalStart + (((UINTN) Desc->NumberOfPages) * EFI_PAGE_SIZE);
-	// kextsPages = EFI_SIZE_TO_PAGES(kext.length);
-	// Status = gBS->AllocatePages(AllocateAddress, EfiLoaderData, kextsPages, &kextsBase);
-	// if (EFI_ERROR(Status)) { MsgLog("Kext inject: could not allocate memory\n"); return Status; }
-	// Desc->NumberOfPages += kextsPages;
-	// CopyMem((VOID*)kextsBase, (VOID*)(UINTN)kext.paddr, kext.length);
-	// drvinfo = (_BooterKextFileInfo*) kextsBase;
-	// drvinfo->infoDictPhysAddr += (UINT32)kextsBase;
-	// drvinfo->executablePhysAddr += (UINT32)kextsBase;
-	// drvinfo->bundlePathPhysAddr += (UINT32)kextsBase;
+  // kextsBase = Desc->PhysicalStart + (((UINTN) Desc->NumberOfPages) * EFI_PAGE_SIZE);
+  // kextsPages = EFI_SIZE_TO_PAGES(kext.length);
+  // Status = gBS->AllocatePages(AllocateAddress, EfiLoaderData, kextsPages, &kextsBase);
+  // if (EFI_ERROR(Status)) { MsgLog("Kext inject: could not allocate memory\n"); return Status; }
+  // Desc->NumberOfPages += kextsPages;
+  // CopyMem((VOID*)kextsBase, (VOID*)(UINTN)kext.paddr, kext.length);
+  // drvinfo = (_BooterKextFileInfo*) kextsBase;
+  // drvinfo->infoDictPhysAddr += (UINT32)kextsBase;
+  // drvinfo->executablePhysAddr += (UINT32)kextsBase;
+  // drvinfo->bundlePathPhysAddr += (UINT32)kextsBase;
   
-	DTInit(dtEntry);
-	if(DTLookupEntry(NULL,"/chosen/memory-map",&memmapEntry)==kSuccess) {
-		if(DTCreatePropertyIteratorNoAlloc(memmapEntry,iter)==kSuccess) {
-			while(DTIterateProperties(iter,&ptr)==kSuccess) {
-				prop = iter->currentProperty;
-				drvPtr = (UINT8*) prop;
-				if(AsciiStrnCmp(prop->name, "Driver-", 7)==0 || AsciiStrnCmp(prop->name, "DriversPackage-", 15)==0) {
-					break;
-				}
-			}
-		}
-	}
+  DTInit(dtEntry);
+  if(DTLookupEntry(NULL,"/chosen/memory-map",&memmapEntry)==kSuccess) {
+  	if(DTCreatePropertyIteratorNoAlloc(memmapEntry,iter)==kSuccess) {
+  		while(DTIterateProperties(iter,&ptr)==kSuccess) {
+  			prop = iter->currentProperty;
+  			drvPtr = (UINT8*) prop;
+  			if(AsciiStrnCmp(prop->name, "Driver-", 7)==0 || AsciiStrnCmp(prop->name, "DriversPackage-", 15)==0) {
+  				break;
+  			}
+  		}
+  	}
+  }
   
-	if(DTLookupEntry(NULL,"/efi/platform",&platformEntry)==kSuccess) {
-		if(DTCreatePropertyIteratorNoAlloc(platformEntry,iter)==kSuccess) {
-			while(DTIterateProperties(iter,&ptr)==kSuccess) {
-				prop = iter->currentProperty;
-				if(AsciiStrCmp(prop->name,"mm_extra")==0) {
-					infoPtr = (UINT8*) prop;
-				}
-				if(AsciiStrCmp(prop->name,"extra")==0) {
-					extraPtr = (UINT8*) prop;
-				}
-			}
-		}
-	}
+  if(DTLookupEntry(NULL,"/efi/platform",&platformEntry)==kSuccess) {
+  	if(DTCreatePropertyIteratorNoAlloc(platformEntry,iter)==kSuccess) {
+  		while(DTIterateProperties(iter,&ptr)==kSuccess) {
+  			prop = iter->currentProperty;
+  			if(AsciiStrCmp(prop->name,"mm_extra")==0) {
+  				infoPtr = (UINT8*) prop;
+  			}
+  			if(AsciiStrCmp(prop->name,"extra")==0) {
+  				extraPtr = (UINT8*) prop;
+  			}
+  		}
+  	}
+  }
   
-	if (drvPtr == 0 || infoPtr == 0 || extraPtr == 0 || drvPtr > infoPtr || drvPtr > extraPtr || infoPtr > extraPtr) {
-		Print(L"\nInvalid device tree for kext injection\n");
+  if (drvPtr == 0 || infoPtr == 0 || extraPtr == 0 || drvPtr > infoPtr || drvPtr > extraPtr || infoPtr > extraPtr) {
+  	Print(L"\nInvalid device tree for kext injection\n");
     gBS->Stall(5000000);
-		return EFI_INVALID_PARAMETER;
-	}
+  	return EFI_INVALID_PARAMETER;
+  }
   
-	// make space for memory map entries
-	platformEntry->nProperties -= 2;
-	offset = sizeof(DeviceTreeNodeProperty) + ((DeviceTreeNodeProperty*) infoPtr)->length;
-	CopyMem(drvPtr+offset, drvPtr, infoPtr-drvPtr);
+  // make space for memory map entries
+  platformEntry->nProperties -= 2;
+  offset = sizeof(DeviceTreeNodeProperty) + ((DeviceTreeNodeProperty*) infoPtr)->length;
+  CopyMem(drvPtr+offset, drvPtr, infoPtr-drvPtr);
   
-	// make space behind device tree
-	// platformEntry->nProperties--;
-	offset = sizeof(DeviceTreeNodeProperty)+((DeviceTreeNodeProperty*) extraPtr)->length;
-	CopyMem(extraPtr, extraPtr+offset, dtLength-(UINTN)(extraPtr-dtEntry)-offset);
-	*deviceTreeLength -= (UINT32)offset;
+  // make space behind device tree
+  // platformEntry->nProperties--;
+  offset = sizeof(DeviceTreeNodeProperty)+((DeviceTreeNodeProperty*) extraPtr)->length;
+  CopyMem(extraPtr, extraPtr+offset, dtLength-(UINTN)(extraPtr-dtEntry)-offset);
+  *deviceTreeLength -= (UINT32)offset;
   
-	KextBase = RoundPage(dtEntry + *deviceTreeLength);
+  KextBase = RoundPage(dtEntry + *deviceTreeLength);
   if(!IsListEmpty(&gKextList)) {
     Index = 1;
     for (Link = gKextList.ForwardLink; Link != &gKextList; Link = Link->ForwardLink) {
@@ -583,10 +583,10 @@ EFI_STATUS InjectKexts(/*IN EFI_MEMORY_DESCRIPTOR *Desc*/ IN UINT32 deviceTreeP,
   }
 
    if (Entry->KernelAndKextPatches->KPDebug) {
-		DBG_RT(Entry, "Done.\n");
-		gBS->Stall(5000000);
-	}
-	return EFI_SUCCESS;
+  	DBG_RT(Entry, "Done.\n");
+  	gBS->Stall(5000000);
+  }
+  return EFI_SUCCESS;
 }
 
 
@@ -659,11 +659,17 @@ UINT8   KBESieDebugReplaceEXT[]  = { 0xE8, 0x47, 0x00, 0x00, 0x00, 0x90, 0x90, 0
 UINT8   KBESieDebugSearchSIP[]   = { 0x31, 0xC9, 0x39, 0xC1, 0x0F, 0x85, 0x3C, 0x00, 0x00, 0x00, 0x48, 0x8B, 0x85 };
 UINT8   KBESieDebugReplaceSIP[]  = { 0x31, 0xC9, 0x39, 0xC1, 0xEB, 0x80, 0x90, 0x90, 0x90, 0x90, 0x48, 0x8B, 0x85 };
 
-// High Sierra
+// Mojave (EXT)
+// PMheart: checked  KBEMoja*EXT
+// Need to pair with KBEHighSieMoja*SIP
+UINT8   KBEMojaSearchEXT[]       = { 0xE8, 0xAF, 0x00, 0x00, 0x00, 0xEB, 0x05, 0xE8 };
+UINT8   KBEMojaReplaceEXT[]      = { 0xE8, 0xAF, 0x00, 0x00, 0x00, 0x90, 0x90, 0xE8 };
+
+// High Sierra/Mojave (SIP)
 // PMheart: checked KBEHighSie*SIP
-// Need to use KBEYos*EXT
-UINT8   KBEHighSieSearchSIP[]    = { 0xC3, 0x48, 0x85, 0xDB, 0x74, 0x69, 0x48, 0x8B, 0x03, 0x48, 0x89, 0xDF, 0xFF, 0x50, 0x28, 0x48 };
-UINT8   KBEHighSieReplaceSIP[]   = { 0xC3, 0x48, 0x85, 0xDB, 0xEB, 0x12, 0x48, 0x8B, 0x03, 0x48, 0x89, 0xDF, 0xFF, 0x50, 0x28, 0x48 };
+// Need to pair with KBEMoja*EXT
+UINT8   KBEHighSieMojaSearchSIP[]    = { 0xC3, 0x48, 0x85, 0xDB, 0x74, 0x69, 0x48, 0x8B, 0x03, 0x48, 0x89, 0xDF, 0xFF, 0x50, 0x28, 0x48 };
+UINT8   KBEHighSieMojaReplaceSIP[]   = { 0xC3, 0x48, 0x85, 0xDB, 0xEB, 0x12, 0x48, 0x8B, 0x03, 0x48, 0x89, 0xDF, 0xFF, 0x50, 0x28, 0x48 };
 
 
 //
@@ -673,114 +679,9 @@ UINT8   KBEHighSieReplaceSIP[]   = { 0xC3, 0x48, 0x85, 0xDB, 0xEB, 0x12, 0x48, 0
 // Actually, we'll at least check that if we can find only one instance of code that
 // we are planning to patch.
 //
-// Slice: for these rare cases I may propose to use Clover GUI "Use OS version if not set"
-// or write specific patterns into config.plist->KernelPatches with MatchOS
-// Now I want to make this procedure faster and secure
+// PMheart: Slice's code has not been used for a long while, removed. Still thanks to his effort!
+//
 
-#if 0  //need testing
-VOID EFIAPI KernelBooterExtensionsPatch(IN UINT8 *Kernel, LOADER_ENTRY *Entry)
-{
-  UINTN   Num = 0;
-  UINTN   NumSnow_i386 = 0;
-  UINTN   NumLion_i386 = 0;
-  UINTN   NumMLMav = 0;
-  UINTN   NumMLDebug = 0;
-  UINTN   NumYos = 0;
-  UINTN   NumMavYosDebug = 0;
-  UINTN   NumEC = 0;
-  UINTN   NumECDebug = 0;
-  UINTN   NumSie = 0;
-  UINTN   NumSieDebug = 0;
-  UINT64  os_version = AsciiOSVersionToUint64(Entry->OSVersion);
-  
-  DBG_RT(Entry, "\nPatching kernel for injected kexts...\n");
-  if (os_version >= AsciiOSVersionToUint64("10.6.0") &&
-      os_version <= AsciiOSVersionToUint64("10.7.5") &&
-      !is64BitKernel) {    
-    NumSnow_i386 = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBESnowSearchEXT_i386, sizeof(KBESnowSearchEXT_i386));
-    NumLion_i386 = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBELionSearchEXT_i386, sizeof(KBELionSearchEXT_i386));
-    if (NumSnow_i386 + NumLion_i386 > 1) {
-      // more then one pattern found - we do not know what to do with it
-      // and we'll skipp it
-      AsciiPrint("\nERROR patching kernel for injected kexts:\nmultiple patterns found (Snowi386: %d, Lioni386: %d) - skipping patching!\n", NumSnow_i386, NumLion_i386);
-      gBS->Stall(10000000);
-      return;
-    }
-    if (NumSnow_i386 == 1) {
-      Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBESnowSearchEXT_i386, sizeof(KBESnowSearchEXT_i386), KBESnowReplaceEXT_i386, 1);
-      DBG_RT(Entry, "==> kernel Snow Leopard i386: %d replaces done.\n", Num);
-    } else if (NumLion_i386 == 1) {
-      Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBELionSearchEXT_i386, sizeof(KBELionSearchEXT_i386), KBELionReplaceEXT_i386, 1);
-      DBG_RT(Entry, "==> kernel Lion i386: %d replaces done.\n", Num);
-    }
-  } else if ((os_version >= AsciiOSVersionToUint64("10.6")) && (os_version < AsciiOSVersionToUint64("10.7"))) {
-    Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBESnowSearchEXT_X64, sizeof(KBESnowSearchEXT_X64), KBESnowReplaceEXT_X64, 1);
-    DBG_RT(Entry, "==> kernel Snow Leopard X64: %d replaces done.\n", Num);
-  } else if ((os_version >= AsciiOSVersionToUint64("10.7")) && (os_version < AsciiOSVersionToUint64("10.8"))) {
-    Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBELionSearchEXT_X64, sizeof(KBELionSearchEXT_X64), KBELionReplaceEXT_X64, 1);
-    DBG_RT(Entry, "==> kernel Lion X64: %d replaces done.\n", Num);
-  } else if ((os_version >= AsciiOSVersionToUint64("10.8")) && (os_version < AsciiOSVersionToUint64("10.10"))) {
-    NumMLMav        = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBEMLMavSearchEXT, sizeof(KBEMLMavSearchEXT));
-    NumMLDebug      = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBEMLDebugSearchEXT, sizeof(KBEMLDebugSearchEXT));
-    NumMavYosDebug  = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBEMavYosDebugSearchEXT, sizeof(KBEMavYosDebugSearchEXT));
-    if (NumMLMav == 1) {
-      Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEMLMavSearchEXT, sizeof(KBEMLMavSearchEXT), KBEMLMavReplaceEXT, 1);
-      DBG_RT(Entry, "==> kernel Mountain Lion/Mavericks: %d replaces done.\n", Num);
-    } else if (NumMLDebug == 1) {
-      Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEMLDebugSearchEXT, sizeof(KBEMLDebugSearchEXT), KBEMLDebugReplaceEXT, 1);
-      DBG_RT(Entry, "==> kernel Mountain Lion Debug: %d replaces done.\n", Num)
-    } else if (NumMavYosDebug == 1) {
-      Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEMavYosDebugSearchEXT, sizeof(KBEMavYosDebugReplaceEXT), KBEMavYosDebugReplaceEXT, 1);
-      DBG_RT(Entry, "==> kernel Mavericks Debug: %d replaces done.\n", Num);
-    }
-  } else if ((os_version >= AsciiOSVersionToUint64("10.10")) && (os_version < AsciiOSVersionToUint64("10.11"))) {
-    NumYos          = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBEYosECSieHighSearchEXT, sizeof(KBEYosECSieHighSearchEXT));
-    NumMavYosDebug  = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBEMavYosDebugSearchEXT, sizeof(KBEMavYosDebugSearchEXT));
-    if (NumYos == 1) {
-      Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEYosECSieHighSearchEXT, sizeof(KBEYosECSieHighSearchEXT), KBEYosECSieHighReplaceEXT, 1);
-      DBG_RT(Entry, "==> kernel Yosemite: %d replaces done.\n", Num);
-    } else if (NumMavYosDebug == 1) {
-      Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEMavYosDebugSearchEXT, sizeof(KBEMavYosDebugReplaceEXT), KBEMavYosDebugReplaceEXT, 1);
-      DBG_RT(Entry, "==> kernel Yosemite Debug: %d replaces done.\n", Num);
-    }
-  } else if ((os_version >= AsciiOSVersionToUint64("10.11")) && (os_version < AsciiOSVersionToUint64("10.12"))) {
-    NumEC       = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBEECSearchSIP, sizeof(KBEECSearchSIP));
-    NumECDebug  = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBEECDebugSearchSIP, sizeof(KBEECDebugSearchSIP));
-    if (NumEC == 1) {
-      Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEYosECSieHighSearchEXT, sizeof(KBEYosECSieHighSearchEXT), KBEYosECSieHighReplaceEXT, 1) +
-            SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEECSearchSIP, sizeof(KBEECSearchSIP), KBEECReplaceSIP, 1);
-      DBG_RT(Entry, "==> kernel  El Capitan: %d replaces done.\n", Num);
-    } else if (NumECDebug == 1) {
-      Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEECDebugSearchEXT, sizeof(KBEECDebugSearchEXT), KBEECDebugReplaceEXT, 1) +
-            SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEECDebugSearchSIP, sizeof(KBEECDebugSearchSIP), KBEECDebugReplaceSIP, 1);
-      DBG_RT(Entry, "==> kernel El Capitan Debug: %d replaces done.\n", Num);
-    }
-  } else if ((os_version >= AsciiOSVersionToUint64("10.12")) && (os_version < AsciiOSVersionToUint64("10.13"))) {
-    NumSie       = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBESieSearchSIP, sizeof(KBESieSearchSIP));
-    NumSieDebug  = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBESieDebugSearchSIP, sizeof(KBESieDebugSearchSIP));
-    if (NumSie == 1) {
-      Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEYosECSieHighSearchEXT, sizeof(KBEYosECSieHighSearchEXT), KBEYosECSieHighReplaceEXT, 1) +
-            SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBESieSearchSIP, sizeof(KBESieSearchSIP), KBESieReplaceSIP, 1);
-      DBG_RT(Entry, "==> kernel Sierra: %d replaces done.\n", Num);
-    } else if (NumSieDebug == 1) {
-      Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBESieDebugSearchEXT, sizeof(KBESieDebugSearchEXT), KBESieDebugReplaceEXT, 1) +
-            SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBESieDebugSearchSIP, sizeof(KBESieDebugSearchSIP), KBESieDebugReplaceSIP, 1);
-      DBG_RT(Entry, "==> kernel Sierra Debug: %d replaces done.\n", Num);
-    }
-  } else if ((os_version >= AsciiOSVersionToUint64("10.13")) && (os_version < AsciiOSVersionToUint64("10.14"))) {
-    Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEYosECSieHighSearchEXT, sizeof(KBEYosECSieHighSearchEXT), KBEYosECSieHighReplaceEXT, 1) +
-          SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEHighSieSearchSIP, sizeof(KBEHighSieSearchSIP), KBEHighSieReplaceSIP, 1);
-    DBG_RT(Entry, "==> kernel High Sierra: %d replaces done.\n", Num);
-  } else {
-    DBG_RT(Entry, "==> ERROR(OSVersion): NOT patched - unknown kernel.\n");
-  }
-
-  if (Entry->KernelAndKextPatches->KPDebug) {
-    DBG_RT(Entry, "Pausing 5 secs ...\n");
-    gBS->Stall(5000000);
-  }  
-}
-#else
 VOID EFIAPI KernelBooterExtensionsPatch(IN UINT8 *Kernel, LOADER_ENTRY *Entry)
 {
   UINTN   Num = 0;
@@ -796,7 +697,8 @@ VOID EFIAPI KernelBooterExtensionsPatch(IN UINT8 *Kernel, LOADER_ENTRY *Entry)
   UINTN   NumECDebug = 0;
   UINTN   NumSie = 0;
   UINTN   NumSieDebug = 0;
-  UINTN   NumHighSie = 0;
+  UINTN   NumHighSieMoja = 0;
+  UINTN   NumMoja = 0;
 
   
   DBG_RT(Entry, "\nPatching kernel for injected kexts...\n");
@@ -812,7 +714,8 @@ VOID EFIAPI KernelBooterExtensionsPatch(IN UINT8 *Kernel, LOADER_ENTRY *Entry)
     //NumECDebug     = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBEECDebugSearchSIP, sizeof(KBEECDebugSearchSIP));
     NumSie         = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBESieSearchSIP, sizeof(KBESieSearchSIP));
     NumSieDebug    = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBESieDebugSearchSIP, sizeof(KBESieDebugSearchSIP));
-    NumHighSie     = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBEHighSieSearchSIP, sizeof(KBEHighSieSearchSIP));
+    NumHighSieMoja = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBEHighSieMojaSearchSIP, sizeof(KBEHighSieMojaSearchSIP));
+    NumMoja        = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBEMojaSearchEXT, sizeof(KBEMojaSearchEXT));
   }
   else {
     NumSnow_i386 = SearchAndCount(Kernel, KERNEL_MAX_SIZE, KBESnowSearchEXT_i386, sizeof(KBESnowSearchEXT_i386));
@@ -823,14 +726,18 @@ VOID EFIAPI KernelBooterExtensionsPatch(IN UINT8 *Kernel, LOADER_ENTRY *Entry)
     // more then one pattern found - we do not know what to do with it
     // and we'll skipp it
     AsciiPrint("\nERROR patching kernel for injected kexts:\nmultiple patterns found (Snowi386: %d, SnowX64: %d, Lioni386: %d, LionX64: %d, MLMav: %d) - skipping patching!\n", NumSnow_i386, NumSnow_X64, NumLion_i386, NumLion_X64, NumMLMav);
-	  gBS->Stall(10000000);
-	  return;
+    gBS->Stall(10000000);
+    return;
   }
   
   // X64
-  if (NumHighSie == 1) {
+  if (NumMoja == 1) {
+    Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEMojaSearchEXT, sizeof(KBEMojaSearchEXT), KBEMojaReplaceEXT, 1) +
+          SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEHighSieMojaSearchSIP, sizeof(KBEHighSieMojaSearchSIP), KBEHighSieMojaReplaceSIP, 1);
+    DBG_RT(Entry, "==> kernel Mojave: %d replaces done.\n", Num);
+  } else if (NumHighSieMoja == 1) {
     Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEYosECSieHighSearchEXT, sizeof(KBEYosECSieHighSearchEXT), KBEYosECSieHighReplaceEXT, 1) +
-          SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEHighSieSearchSIP, sizeof(KBEHighSieSearchSIP), KBEHighSieReplaceSIP, 1);
+          SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBEHighSieMojaSearchSIP, sizeof(KBEHighSieMojaSearchSIP), KBEHighSieMojaReplaceSIP, 1);
     DBG_RT(Entry, "==> kernel High Sierra: %d replaces done.\n", Num);
   } else if (NumSieDebug == 1) {
     Num = SearchAndReplace(Kernel, KERNEL_MAX_SIZE, KBESieDebugSearchEXT, sizeof(KBESieDebugSearchEXT), KBESieDebugReplaceEXT, 1) +
@@ -882,4 +789,3 @@ VOID EFIAPI KernelBooterExtensionsPatch(IN UINT8 *Kernel, LOADER_ENTRY *Entry)
     gBS->Stall(5000000);
   }
 }
-#endif
