@@ -35,15 +35,27 @@
 #define DBG(...) DebugLog(DEBUG_SPD, __VA_ARGS__)
 #endif
 
+#define DEBUGSPD 0 // show status changes
+#define TIMEOUTONERR 0 // related to DEBUGSPD; disable this to eliminate extraneous waits.
+#define DOSMBSCAN 1 // show all slave addresses on each SMBus
+
+#define STOPAFTERFIRSTSMBUS 0 // Stop scanning after finding the first SMBus that has RAM modules. Disable this to test all methods.
+
+#define DOSCANPCIPROTOCOLS 1 // Use PCI protocol to control SMBus type devices.
+#define DOSCANSMBUSPROTOCOLS 1 // Use built in EFI SMBus protocol to read SMBus slaves.
+#define DOSCANPCICONFIG 1 // Scan PCI config space for SMBus devices. Disable this if scanning PCI config space is scary.
+#define DOSCANOTHERDEVICES 1 // Use PCI protocol to get information about other devices of interest for debugging purposes.
+
 //extern EFI_DATA_HUB_PROTOCOL			*gDataHub;
 
 extern MEM_STRUCTURE		gRAM;
 //extern DMI*					gDMI;
 
 //==>
-extern UINT16 TotalCount;
+extern UINT16 gTotalMemoryDevices;
 //<==
 
+PCI_TYPE00            gPci;
 BOOLEAN             smbIntel;
 UINT8				smbPage;
 
@@ -88,13 +100,34 @@ UINT8 spd_mem_to_smbios[] =
 //define val=inb(port) val=IoRead(port)
 
 // Intel SMB reg offsets
-#define SMBHSTSTS 0
-#define SMBHSTCNT 2
-#define SMBHSTCMD 3
-#define SMBHSTADD 4
-#define SMBHSTDAT 5
-#define SMBHSTDAT1 6
-#define SBMBLKDAT 7
+//                   // name1                              name2                         name3
+#define SMBHSTSTS 0  // HSTS                               HSTS   Host Status            00h   HST_STS          Host Status
+                     //                                    SSTS   Slave Status
+#define SMBHSTCNT 2  // HCON                               HCNT   Host Control           02h   HST_CNT          Host Control
+#define SMBHSTCMD 3  // HCOM                               HCMD   Host Command           03h   HST_CMD          Host Command
+#define SMBHSTADD 4  // TXSA                               HADD   Host Address           04h   XMIT_SLVA        Transmit Slave Address
+#define SMBHSTDAT 5  // DAT0                               DAT0   Host Data Byte 0       05h   HST_D0           Host Data 0
+#define SMBHSTDAT1 6 // DAT1                               DAT1   Host Data Byte 1       06h   HST_D1           Host Data 1
+#define SBMBLKDAT 7  // HBDR                               BLKD   Host Block Data        07h   HOST_BLOCK_DB    Host Block Data Byte
+                     // PECR     Packet Error Checking?    SCNT   Slave Count            08h   PEC              Packet Error Check
+                     // RXSA     ?                         SCMD   Shadow Command         09h   RCV_SLVA         Receive Slave Address
+                     // SDAT[0]                            SEVT   Slave Event            0Ah   SLV_DATA         Receive Slave Data
+                     // SDAT[1]  ?                         SDAT   Slave Data             0Bh   SLV_DATA         Receive Slave Data
+                     //                                                                  0Ch   AUX_STS          Auxiliary Status
+                     //                                                                  0Dh   AUX_CTL          Auxiliary Control
+                     //                                                                  0Eh   SMLINK_PIN_CTL   SMLink Pin Control (TCO Compatible Mode)
+                     //                                                                  0Fh   SMBus_PIN_CTL    SMBus Pin Control
+                     //                                                                  10h   SLV_STS          Slave Status
+                     //                                                                  11h   SLV_CMD          Slave Command
+                     //                                                                  14h   NOTIFY_DADDR     Notify Device Address
+                     //                                                                  16h   NOTIFY_DLOW      Notify Data Low Byte
+                     //                                                                  17h   NOTIFY_DHIGH     Notify Data High Byte
+/*
+name1: SBUS device of DSDT of "Gigabyte Z170X Gaming 7" motherboard
+name2: Page 33 of "System Management Bus (SMBus) Control Method Interface Specification Version 1.0"
+name3: "Intel® C610 Series Chipset and Intel® X99 Chipset Platform Controller Hub (PCH)" October 2015
+*/
+
 // MCP and nForce SMB reg offsets
 #define SMBHPRTCL_NV 0 /* protocol, PEC */
 #define SMBHSTSTS_NV 1 /* status */
@@ -397,7 +430,7 @@ UINT16 getDDRspeedMhz(UINT8 * spd)
   UINT16 xmpFrequency1 = 0, xmpFrequency2 = 0;
   UINT8 xmpVersion = 0;
   UINT8 xmpProfiles = 0;
-  
+
   DBG("Getting Default RAM details.\n");
 
   if (spd[SPD_MEMORY_TYPE] == SPD_MEMORY_TYPE_SDRAM_DDR4) {
@@ -412,9 +445,9 @@ UINT16 getDDRspeedMhz(UINT8 * spd)
     // Check if module supports XMP
     if ((spd[SPD_XMP20_SIG1] == SPD_XMP_SIG1_VALUE) &&
         (spd[SPD_XMP20_SIG2] == SPD_XMP_SIG2_VALUE)) {
-      
+
       DBG("Module supports XMP.\n");
-      
+
       xmpVersion  = spd[SPD_XMP20_VERSION];
       xmpProfiles = spd[SPD_XMP20_PROFILES] & 3;
 
@@ -685,7 +718,7 @@ STATIC VOID read_smb(EFI_PCI_IO_PROTOCOL *PciIo, UINT16	vid, UINT16	did)
 
   // Search MAX_RAM_SLOTS slots
   //==>
-  /*  TotalSlotsCount = (UINT8) TotalCount;
+  /*  TotalSlotsCount = (UINT8) gTotalMemoryDevices;
    if (!TotalSlotsCount) {
    TotalSlotsCount = MAX_RAM_SLOTS;
    } */
@@ -703,7 +736,7 @@ STATIC VOID read_smb(EFI_PCI_IO_PROTOCOL *PciIo, UINT16	vid, UINT16	did)
     DBG("SPD buffer 0x02: %d\n", spdbuf[0x02] );
     DBG("SPD buffer 0x03: %d\n", spdbuf[0x03] );
     DBG("SPD buffer 0x04: %d\n", spdbuf[0x04] );
-    
+
     if (spdbuf[SPD_MEMORY_TYPE] == 0xFF) {
       DBG("SPD[%d]: Empty\n", i);
       continue;
@@ -714,7 +747,7 @@ STATIC VOID read_smb(EFI_PCI_IO_PROTOCOL *PciIo, UINT16	vid, UINT16	did)
       smbPage = 0xFF; // force page to be set
       READ_SPD(spdbuf, base, i, SPD_MEMORY_TYPE);
     }
-    
+
     // Copy spd data into buffer
     DBG("SPD[%d]: Type %d @0x%x\n", i, spdbuf[SPD_MEMORY_TYPE], 0x50 + i);
     switch (spdbuf[SPD_MEMORY_TYPE])  {
@@ -757,7 +790,7 @@ STATIC VOID read_smb(EFI_PCI_IO_PROTOCOL *PciIo, UINT16	vid, UINT16	did)
 
         init_spd(spd_indexes_ddr4, spdbuf, base, i);
         gRAM.SPD[i].Type = MemoryTypeDdr4;
-        
+
         /*
             For SPD memory buffer bit details see (2018-04-18):
             http://www.softnology.biz/pdf/4_01_02_AnnexL-R25_SPD_for_DDR4_SDRAM_Release_3_Sep2015.pdf
@@ -773,7 +806,7 @@ STATIC VOID read_smb(EFI_PCI_IO_PROTOCOL *PciIo, UINT16	vid, UINT16	did)
             times SPD byte 6 bits 6~4 (Die Count)
 
         */
-        
+
         DBG("Calculating DIMM details for DDR4 from SPD:\n");
 
         UINT8   modules_width_bits = spdbuf[12] & 0x07; // 12[2~0]
@@ -859,12 +892,13 @@ STATIC VOID read_smb(EFI_PCI_IO_PROTOCOL *PciIo, UINT16	vid, UINT16	did)
            gRAM.SPD[i].PartNo,
            gRAM.SPD[i].SerialNo);
 
-    gRAM.SPD[i].InUse = TRUE;
-    ++(gRAM.SPDInUse);
+    // Asher
+    // gRAM.SPD[i].InUse = TRUE;
+    // ++(gRAM.SPDInUse);
     //}
 
     // laptops sometimes show slot 0 and 2 with slot 1 empty when only 2 slots are presents so:
-    //gDMI->DIMM[i]= (UINT32)((i>0 && gRAM->DIMM[1].InUse==FALSE && !fullBanks && TotalCount == 2)?mapping[i] : i); // for laptops case, mapping setup would need to be more generic than this
+    //gDMI->DIMM[i]= (UINT32)((i>0 && gRAM->DIMM[1].InUse==FALSE && !fullBanks && gTotalMemoryDevices == 2)?mapping[i] : i); // for laptops case, mapping setup would need to be more generic than this
 
     //slot->spd = NULL;
 
@@ -884,10 +918,9 @@ VOID ScanSPD()
 //  UINTN                 ArrayCount;
   UINTN                 Index;
 //  UINTN                 ProtocolIndex;
-  PCI_TYPE00            gPci;
 
   DbgHeader("ScanSPD");
-  
+
   // Scan PCI handles
   Status = gBS->LocateHandleBuffer (
                                     ByProtocol,
@@ -896,7 +929,7 @@ VOID ScanSPD()
                                     &HandleCount,
                                     &HandleBuffer
                                     );
-  
+
   if (!EFI_ERROR (Status)) {
     for (Index = 0; Index < HandleCount; ++Index) {
       Status = gBS->HandleProtocol(HandleBuffer[Index], &gEfiPciIoProtocolGuid, (VOID **)&PciIo);
@@ -928,7 +961,7 @@ VOID ScanSPD()
   }
 
 
-  // Scan PCI BUS For SmBus controller 
+  // Scan PCI BUS For SmBus controller
 /*  Status = gBS->LocateHandleBuffer(AllHandles,NULL,NULL,&HandleCount,&HandleBuffer);
   if (!EFI_ERROR(Status)) {
     for (HandleIndex = 0; HandleIndex < HandleCount; HandleIndex++) {
@@ -937,9 +970,9 @@ VOID ScanSPD()
         for (ProtocolIndex = 0; ProtocolIndex < ArrayCount; ProtocolIndex++) {
           if (CompareGuid(&gEfiPciIoProtocolGuid, ProtocolGuidArray[ProtocolIndex])) {
             Status = gBS->OpenProtocol(HandleBuffer[HandleIndex],&gEfiPciIoProtocolGuid,(VOID **)&PciIo,gImageHandle,NULL,EFI_OPEN_PROTOCOL_GET_PROTOCOL);
-            
+
             if (!EFI_ERROR(Status)) {
-              // Read PCI BUS 
+              // Read PCI BUS
               Status = PciIo->Pci.Read (
                                         PciIo,
                                         EfiPciIoWidthUint32,
@@ -947,9 +980,9 @@ VOID ScanSPD()
                                         sizeof (gPci) / sizeof (UINT32),
                                         &gPci
                                         );
-              
+
               //SmBus controller has class = 0x0c0500
-              if ((gPci.Hdr.ClassCode[2] == 0x0c) && (gPci.Hdr.ClassCode[1] == 5) 
+              if ((gPci.Hdr.ClassCode[2] == 0x0c) && (gPci.Hdr.ClassCode[1] == 5)
                   && (gPci.Hdr.ClassCode[0] == 0) && (gPci.Hdr.VendorId == 0x8086 || gPci.Hdr.VendorId == 0x10DE)) {
                 read_smb(PciIo);
               }

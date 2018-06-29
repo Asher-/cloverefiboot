@@ -2241,9 +2241,9 @@ RefitMain (IN EFI_HANDLE           ImageHandle,
 
   GetMacAddress();
 
-  DBG("ScanSPD() start\n");
-  ScanSPD();
-  DBG("ScanSPD() end\n");
+  // DBG("ScanSPD() start\n");
+  // ScanSPD();
+  // DBG("ScanSPD() end\n");
 
   SetPrivateVarProto();
 //  GetDefaultSettings();
