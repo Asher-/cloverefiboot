@@ -2,7 +2,7 @@
   Module for clarifying the content of the smbios structure element information.
 
   Copyright (c) 2005 - 2017, Intel Corporation. All rights reserved.<BR>
-  (C) Copyright 2014 Hewlett-Packard Development Company, L.P.<BR>  
+  (C) Copyright 2014 Hewlett-Packard Development Company, L.P.<BR>
   (C) Copyright 2015-2017 Hewlett Packard Enterprise Development LP<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -493,17 +493,8 @@ SmbiosPrintStructure (
   //
   // Memory Module Information (Type 6)
   //
-  case 6:
-    PRINT_PENDING_STRING (Struct, Type6, SocketDesignation);
-    DisplayMmBankConnections (Struct->Type6->BankConnections, Option);
-    PRINT_STRUCT_VALUE (Struct, Type6, CurrentSpeed);
-    DisplayMmMemoryType (*(UINT16 *) &(Struct->Type6->CurrentMemoryType), Option);
-    ShellPrintHiiEx(-1,-1,NULL,STRING_TOKEN (STR_SMBIOSVIEW_PRINTINFO_INSTALLED), gShellDebug1HiiHandle);
-    DisplayMmMemorySize (*(UINT8 *) &(Struct->Type6->InstalledSize), Option);
-    ShellPrintHiiEx(-1,-1,NULL,STRING_TOKEN (STR_SMBIOSVIEW_PRINTINFO_ENABLED), gShellDebug1HiiHandle);
-    DisplayMmMemorySize (*(UINT8 *) &(Struct->Type6->EnabledSize), Option);
-    DisplayMmErrorStatus (Struct->Type6->ErrorStatus, Option);
-    break;
+  // case 6:
+  // Obsolete
 
   //
   // Cache Information (Type 7)
@@ -2892,7 +2883,7 @@ DisplaySBDSManufactureDate (
 /**
   Display System Reset (Type 23) information.
 
-  
+
 Identifies the system-reset capabilities for the system.
  Bits 7:6 Reserved for future assignment via this specification, set to 00b.
  Bit 5  System contains a watchdog timer, either True (1) or False (0).
@@ -2996,7 +2987,7 @@ DisplaySystemResetCapabilities (
 /**
   Display Hardware Security (Type 24) information.
 
-    
+
 Identifies the password and reset status for the system:
 
 Bits 7:6    Power-on Password Status, one of:

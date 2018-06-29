@@ -1910,9 +1910,7 @@ VOID PatchSmbios(VOID) //continue
 	PatchTableType3();
 	PatchTableType7(); //we should know handles before patch Table4
 	PatchTableType4();
-//	PatchTableType6();
 	PatchTableType9();
- // PatchTableType11();
 	PatchTableTypeSome();
 	PatchTableType17();
    PatchTableType16();
@@ -1930,7 +1928,7 @@ VOID PatchSmbios(VOID) //continue
 	FreePool((VOID*)newSmbiosTable.Raw);
 
 	// there is no need to keep all tables in numeric order. It is not needed
-// neither by specs nor by AppleSmbios.kext
+  // either by specs nor by AppleSmbios.kext
 }
 
 VOID FinalizeSmbios() //continue
