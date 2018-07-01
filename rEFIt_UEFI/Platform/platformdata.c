@@ -627,6 +627,7 @@ VOID SetDMISettingsForModel(MACHINE_TYPES Model, BOOLEAN Redefine)
       gFwFeatures             = 0xFC0FE13F;
       break;
     case iMacPro11:
+    case iMac191:
       gFwFeatures             = 0xFD8FF53F;
       break;
 
@@ -723,6 +724,7 @@ VOID SetDMISettingsForModel(MACHINE_TYPES Model, BOOLEAN Redefine)
       gFwFeaturesMask         = 0xFF1FFF3F;
       break;
     case iMacPro11:
+    case iMac191:
       gFwFeaturesMask         = 0xFF9FFF3F;
       break;
 
@@ -759,7 +761,7 @@ VOID SetDMISettingsForModel(MACHINE_TYPES Model, BOOLEAN Redefine)
       gFwFeaturesMask         = 0xFFFFFFFF; //unknown - use oem SMBIOS value to be default
       break;
   }
-  
+
   // PlatformFeature
   // the memory tab in About This Mac
   // by TheRacerMaster
@@ -883,6 +885,7 @@ VOID SetDMISettingsForModel(MACHINE_TYPES Model, BOOLEAN Redefine)
     case iMac182:
     case iMac183:
     case iMacPro11:
+    case iMac191:
       gSettings.ChassisType = MiscChassisTypeLapTop; //0x09;
       switch (Model) {
         case iMac161:
@@ -892,6 +895,7 @@ VOID SetDMISettingsForModel(MACHINE_TYPES Model, BOOLEAN Redefine)
         case iMac182:
         case iMac183:
         case iMacPro11:
+        case iMac191:
           gSettings.Mobile      = FALSE;
           break;
         default:
@@ -974,7 +978,7 @@ VOID SetDMISettingsForModel(MACHINE_TYPES Model, BOOLEAN Redefine)
       gSettings.ChassisType = MiscChassisTypeUnknown; //0x02; this is a joke but think different!
       gSettings.Mobile      = FALSE;
       break;
-          
+
     case Xserve11:
     case Xserve21:
     case Xserve31:
@@ -1002,15 +1006,15 @@ VOID SetDMISettingsForModel(MACHINE_TYPES Model, BOOLEAN Redefine)
       case CPU_MODEL_CELERON:
         AsciiStrCpyS (gSettings.RBr, 8, "m70");
         break;
-                
+
       case CPU_MODEL_YONAH:
         AsciiStrCpyS (gSettings.RBr, 8, "k22");
         break;
-                
+
       case CPU_MODEL_MEROM: //TODO check for mobile
         AsciiStrCpyS (gSettings.RBr, 8, "m75");
         break;
-                
+
       case CPU_MODEL_PENRYN:
         if (gSettings.Mobile) {
           AsciiStrCpyS (gSettings.RBr, 8, "m82");
@@ -1018,7 +1022,7 @@ VOID SetDMISettingsForModel(MACHINE_TYPES Model, BOOLEAN Redefine)
           AsciiStrCpyS (gSettings.RBr, 8, "k36");
         }
         break;
-                
+
       case CPU_MODEL_SANDY_BRIDGE:
         if (gSettings.Mobile) {
           AsciiStrCpyS (gSettings.RBr, 8, "k90i");
@@ -1026,39 +1030,39 @@ VOID SetDMISettingsForModel(MACHINE_TYPES Model, BOOLEAN Redefine)
           AsciiStrCpyS (gSettings.RBr, 8, "k60");
         }
         break;
-                
+
       case CPU_MODEL_IVY_BRIDGE:
         AsciiStrCpyS (gSettings.RBr, 8, "j30");
         break;
-                
+
       case CPU_MODEL_IVY_BRIDGE_E5:
         AsciiStrCpyS (gSettings.RBr, 8, "j90");
         break;
-                
+
       case CPU_MODEL_HASWELL_ULT:
         AsciiStrCpyS (gSettings.RBr, 8, "j44");
         break;
-                
+
       case CPU_MODEL_HASWELL_U5: //Mobile - Broadwell
         AsciiStrCpyS (gSettings.RBr, 8, "j52");
         break;
-                
+
       case CPU_MODEL_SKYLAKE_D:
         AsciiStrCpyS (gSettings.RBr, 8, "j95j95am");
         break;
-                
+
       case CPU_MODEL_SKYLAKE_U:
         AsciiStrCpyS (gSettings.RBr, 8, "2016mb");
         break;
-                
+
       case CPU_MODEL_KABYLAKE1: //Mobile
         AsciiStrCpyS (gSettings.RBr, 8, "2017mbp");
         break;
-                
+
       case CPU_MODEL_KABYLAKE2: //Desktop
         AsciiStrCpyS (gSettings.RBr, 8, "j133_4_5");
         break;
-                
+
       default:
         AsciiStrCpyS (gSettings.RBr, 8, "t9");
         break;
@@ -1178,7 +1182,7 @@ VOID GetDefaultSettings()
                                     ((gGraphics[1].Vendor == Nvidia) && (gGraphics[1].Family < 0xE0)));
 
   gSettings.GraphicsInjector     = gSettings.InjectATI || gSettings.InjectNVidia;
-  CopyMem (gSettings.NVCAP, default_NVCAP, 20); 
+  CopyMem (gSettings.NVCAP, default_NVCAP, 20);
   CopyMem (gSettings.Dcfg, default_dcfg_0, 4);
   CopyMem (&gSettings.Dcfg[4], default_dcfg_1, 4);
   //gSettings.CustomEDID           = NULL; //no sense to assign 0 as the structure is zeroed
@@ -1199,7 +1203,7 @@ VOID GetDefaultSettings()
   gSettings.BooterConfig         = 0;
   gSettings.DisableCloverHotkeys = FALSE;
   gSettings.UIScale              = 1;
-  
+
   ResumeFromCoreStorage          = FALSE;
 
   if (gCPUStructure.Model >= CPU_MODEL_IVY_BRIDGE) {
@@ -1221,7 +1225,7 @@ VOID GetDefaultSettings()
     //gSettings.DropSSDT           = TRUE;    //why drop all???
     gSettings.C3Latency          = 0x00FA;
   }
-  
+
 //CPU
   //gSettings.EnableISS            = FALSE; //((gCPUStructure.CPUID[CPUID_01][ECX] & (1<<7)) != 0);
   gSettings.Turbo                = gCPUStructure.Turbo;

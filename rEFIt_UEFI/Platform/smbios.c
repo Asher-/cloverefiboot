@@ -455,6 +455,67 @@ VOID PatchTableType0()
 		UpdateSmbiosString(newSmbiosTable, &newSmbiosTable.Type0->BiosReleaseDate, gSettings.ReleaseDate);
 	}
 
+  // System BIOS Major Release
+  //
+  // Identifies the major release of the System BIOS.
+  //
+  // For example, the value is 0Ah for revision 10.22 and 02h for revision 2.1.
+  //
+  // This field or the System BIOS Minor Release field or both are updated each
+  // time a System BIOS update for a given system is released.
+  //
+  // If the system does not support the use of this field, the value is 0x0FF
+  // for both this field and the System BIOS Minor Release field.
+
+  // System BIOS Minor Release
+  //
+  // Identifies the minor release of the System BIOS; for example, the value
+  // is 16h for revision 10.22 and 01h for revision 2.1.
+
+  // Embedded Controller Firmware Major Release
+  //
+  // Identifies the major release of the embedded controller firmware
+  //
+  // For example:
+  // * The value would be 0x0A for revision 10.22
+  // * And 0x02 for revision 2.1.
+  //
+  // This field or the Embedded Controller Firmware Minor Release field or
+  // both are updated each time an embedded controller firmware update for
+  // a given system is released.
+  //
+  // If the system does not have field upgradeable embedded controller
+  // firmware, the value is 0x0FF.
+  //
+
+  // Embedded Controller Firmware Minor Release
+  //
+  // Identifies the minor release of the embedded controller firmware;
+  //
+  // For example, the value is 16h for revision 10.22 and 01h for revision 2.1.
+  //
+  // If the system does not have field upgradeable embedded controller
+  // firmware, the value is 0x0FF.
+  //
+
+  // Extended BIOS ROM Size
+  //
+  // Extended size of the physical device(s) containing the BIOS, rounded up
+  // if needed.
+  //
+  // * Bits 15:14 Unit
+  // * 0b00 - megabytes
+  // * 0b01 - gigabytes
+  // * 0b10 - reserved
+  // * 0b11 - reserved
+  // * Bits 13:0 Size
+  //
+  // Examples:
+  // * A 16 MB device would be represented as 0010h.
+  // * A 48 GB device set would be represented as 0100_0000_0011_0000b or 4030h.
+  //
+
+
 	Handle = LogSmbiosTable(newSmbiosTable);
 }
 
@@ -523,6 +584,71 @@ VOID PatchTableType1()
 		UpdateSmbiosString(newSmbiosTable, &newSmbiosTable.Type1->Family, gSettings.FamilyName);
 	}
 
+  // Length
+  //
+  // Length dependent on version supported:
+  // * 0x08 for 2.0
+  // * 0x19 for 2.1 – 2.3.4
+  // * 0x1B for 2.4 and later
+  //
+
+  // Handle
+  //
+
+  // Manufacturer
+  //
+  // Number of null-terminated string
+  //
+
+  // Product Name
+  //
+  // Number of null-terminated string
+  //
+
+  // Version
+  //
+  // Number of null-terminated string
+  //
+
+  // Serial Number
+  //
+  // Number of null-terminated string
+  //
+
+  // UUID
+  //
+  // Universal unique ID number; see 7.2.1.
+  //
+
+  // Wake-up Type
+  //
+  // Identifies the event that caused the system to power up. See 7.2.2.
+  //
+
+  // SKU Number
+  //
+  // Number of null-terminated string
+  //
+  // This text string identifies a particular computer configuration for sale.
+  // It is sometimes also called a product ID or purchase order number.
+  // This number is frequently found in existing fields, but there is no
+  // standard format. Typically for a given system board from a given OEM,
+  // there are tens of unique processor, memory, hard drive, and optical drive
+  // configurations.
+  //
+
+  // Family
+  //
+  // Number of null-terminated string
+  //
+  // This text string identifies the family to which a particular computer
+  // belongs. A family refers to a set of computers that are similar but
+  // not identical from a hardware or software point of view. Typically,
+  // a family is composed of different computer models, which have different
+  // configurations and pricing points. Computers in the same family often
+  // have similar branding and cosmetic features.
+  //
+
 	Handle = LogSmbiosTable(newSmbiosTable);
 	return;
 }
@@ -541,6 +667,7 @@ VOID GetTableType2()
   CopyMem(gSettings.OEMBoard, s, iStrLen(s, 64) + 1);
   s = GetSmbiosString(SmbiosTable, SmbiosTable.Type2->Manufacturer);
 	CopyMem(gSettings.OEMVendor, s, iStrLen(s, 64) + 1);
+
 
 }
 
@@ -610,6 +737,77 @@ VOID PatchTableType2()
 	*/
 	newSmbiosTable.Type2->NumberOfContainedObjectHandles = 0;
 
+
+  // Length
+  //
+  // Length of the structure, at least 0x08
+  //
+
+  // Handle
+  //
+
+  // Manufacturer
+  //
+  // Number of null-terminated string
+  //
+
+  // Product Name
+  //
+  // Number of null-terminated string
+  //
+
+  // Version
+  //
+  // Number of null-terminated string
+  //
+
+  // Serial Number
+  //
+  // Number of null-terminated string
+  //
+
+  // Asset Tag
+  //
+  // Number of null-terminated string
+  //
+
+  // Feature Flags
+  //
+  // Collection of flags that identify features of this baseboard; see 7.3.1
+  //
+
+  // Location in Chassis
+  //
+  // Number of a null-terminated string that describes this board's location
+  // within the chassis referenced by the Chassis Handle (described below
+  // in this table).
+  //
+  // Note:
+  //
+  //   This field supports a CIM_Container class mapping where:
+  //   * LocationWithinContainer is this field.
+  //   * GroupComponent is the chassis referenced by Chassis Handle.
+  //   * PartComponent is this baseboard.
+  //
+
+  // Chassis Handle
+  //
+  // Handle, or instance number, associated with the chassis in which this
+  // board resides (see 7.4)
+
+  // Board Type
+  //
+  // Type of board (see 7.3.2)
+
+  // Number of Contained Object Handles (n)
+  //
+  // Number (0 to 255) of Contained Object Handles that follow
+
+  // Contained Object Handles
+  //
+  // List of handles of other structures (for example, Baseboard, Processor,
+  // Port, System Slots, Memory Device) that are contained by this baseboard
+  //
 	Handle = LogSmbiosTable(newSmbiosTable);
 	return;
 }
@@ -680,6 +878,113 @@ VOID PatchTableType3()
 	if(iStrLen(gSettings.ChassisAssetTag, 64)>0){
 		UpdateSmbiosString(newSmbiosTable, &newSmbiosTable.Type3->AssetTag, gSettings.ChassisAssetTag);
 	}
+
+  // Length
+  //
+  // 0x09 for version 2.0 implementations or a minimum of 0x0D for version 2.1
+  // and later implementations
+  //
+
+  // Handle
+  //
+
+  // Manufacturer
+  //
+  // Number of null-terminated string
+  //
+
+  // Type
+  //
+  // * Bit 7 Chassis lock is present if 1.
+  // * Otherwise, either a lock is not present or it is unknown if the
+  //   enclosure has a lock.
+  //
+  // Bits 6:0 Enumeration value; see below.
+  //
+
+  // Version
+  //
+  // Number of null-terminated string
+  //
+
+  // Serial Number
+  //
+  // Number of null-terminated string
+  //
+
+  // Asset Tag
+  //
+  // Number of null-terminated string
+  //
+
+  // Boot-up State
+  //
+  // State of the enclosure when it was last booted; see 7.4.2 for definitions
+  //
+
+  // Power Supply State
+  //
+  // State of the enclosure’s power supply (or supplies) when last booted;
+  // see 7.4.2 for definitions
+  //
+
+  // Thermal State
+  //
+  // Thermal state of the enclosure when last booted; see 7.4.2 for definitions
+  //
+
+  // Security Status
+  //
+  // Physical security status of the enclosure when last booted; see 7.4.3 for
+  // definitions
+  //
+
+  // OEM-defined
+  //
+  // OEM- or BIOS vendor-specific information
+  //
+
+  // Height
+  //
+  // Height of the enclosure, in 'U's A U is a standard unit of measure for
+  // the height of a rack or rack-mountable component and is equal to 1.75
+  // inches or 4.445 cm. A value of 00h indicates that the enclosure height
+  // is unspecified.
+  //
+
+  // Number of Power Cords
+  //
+  // Number of power cords associated with the enclosure or chassis A value
+  // of 00h indicates that the number is unspecified.
+  //
+
+  // Contained Element Count (n)
+  //
+  // Number of Contained Element records that follow, in the range 0 to 255.
+  // Each Contained Element group comprises m bytes, as specified by the
+  // Contained Element Record Length field that follows. If no Contained
+  // Elements are included, this field is set to 0.
+  //
+
+  // Contained Element Record Length (m)
+  //
+  // Byte length of each Contained Element record that follows, in the range 0
+  // to 255. If no Contained Elements are included, this field is set to 0.
+  // For version 2.3.2 and later of this specification, this field is set to
+  // at least 03h when Contained Elements are specified.
+  //
+
+  // Contained Elements
+  //
+  // Elements, possibly defined by other SMBIOS structures, present in this
+  // chassis; see 7.4.4 for definitions
+  //
+
+  // SKU Number
+  //
+  // Number of null-terminated string describing the chassis or enclosure
+  // SKU number
+  //
 
 	Handle = LogSmbiosTable(newSmbiosTable);
 	return;
@@ -902,6 +1207,231 @@ VOID PatchTableType4()
 			UpdateSmbiosString(newSmbiosTable, &newSmbiosTable.Type4->SerialNumber, BrandStr);
 		}
 
+    // Length
+    //
+    // Length is 1Ah for version 2.0 implementations; 23h for 2.3; 28h for 2.5; 2Ah for 2.6, and 30h for version 3.0 and later implementations.
+
+    // Handle
+
+    // Socket Designation
+    //
+    // String number for Reference Designation EXAMPLE: ‘J202’,0
+
+    // Processor Type
+    //
+    // See 7.5.1.
+
+    // Processor Family
+    //
+    // See 7.5.2.
+
+    // Processor Manufacturer
+    //
+    // String number of Processor Manufacturer
+
+    // Processor ID
+    //
+    // Raw processor identification data See 7.5.3 for details.
+
+    // Processor Version
+    //
+    // String number describing the Processor
+
+    // Voltage
+    //
+    // See 7.5.4.
+
+    // External Clock
+    //
+    // External Clock Frequency, in MHz If the value is unknown, the field is set to 0.
+
+    // Max Speed
+    //
+    // Maximum processor speed (in MHz) supported by the system for this
+    // processor socket.
+    // * 0E9h is for a 233 MHz processor.
+    // * If the value is unknown, the field is set to 0.
+    //
+    // Note: This field identifies a capability for the system, not the
+    //       processor itself.
+    //
+
+    // Current Speed
+    //
+    // Same format as Max Speed NOTE: This field identifies the processor's
+    // speed at system boot; the processor may support more than one speed.
+    //
+
+    // Status
+    //
+    // Bit 7 - Reserved, must be zero
+    // Bit 6 - CPU Socket Populated
+    //   1 – CPU Socket Populated
+    //   0 – CPU Socket Unpopulated
+    // Bits 5:3 - Reserved, must be zero
+    // Bits 2:0 - CPU Status
+    //   0x0 – Unknown
+    //   0x1 – CPU Enabled
+    //   0x2 – CPU Disabled by User through BIOS Setup
+    //   0x3 – CPU Disabled By BIOS (POST Error)
+    //   0x4 – CPU is Idle, waiting to be enabled.
+    //   0x5-0x6 – Reserved
+    //   0x7 – Other
+    //
+
+    // Processor Upgrade
+    //
+    // See 7.5.5.
+    //
+
+    // L1 Cache Handle
+    //
+    // Handle of a Cache Information structure that defines the attributes of
+    // the primary (Level 1) cache for this processor.
+    //
+    // For version 2.1 and version 2.2 implementations, the value is 0x0FFFF if
+    // the processor has no L1 cache. For version 2.3 and later implementations,
+    // the value is 0x0FFFF if the Cache Information structure is not provided.
+    //
+    // Beginning with version 2.3 implementations, if the Cache Handle is
+    // 0x0FFFF, management software must make no assumptions about the cache's
+    // attributes and should report all cache-related attributes as unknown.
+    // The definitive absence of a specific cache is identified by referencing
+    // a Cache Information structure and setting that structure's Installed
+    // Size field to 0.
+    //
+
+    // L2 Cache Handle
+    //
+    // Handle of a Cache Information structure that defines the attributes of
+    // the primary (Level 2) cache for this processor.
+    //
+    // For version 2.1 and version 2.2 implementations, the value is 0x0FFFF if
+    // the processor has no L2 cache. For version 2.3 and later implementations,
+    // the value is 0x0FFFF if the Cache Information structure is not provided.
+    //
+    // Beginning with version 2.3 implementations, if the Cache Handle is
+    // 0x0FFFF, management software must make no assumptions about the cache's
+    // attributes and should report all cache-related attributes as unknown.
+    // The definitive absence of a specific cache is identified by referencing
+    // a Cache Information structure and setting that structure's Installed
+    // Size field to 0.
+    //
+
+    // L3 Cache Handle
+    //
+    // Handle of a Cache Information structure that defines the attributes of
+    // the primary (Level 3) cache for this processor.
+    //
+    // For version 2.1 and version 2.2 implementations, the value is 0x0FFFF if
+    // the processor has no L3 cache. For version 2.3 and later implementations,
+    // the value is 0x0FFFF if the Cache Information structure is not provided.
+    //
+    // Beginning with version 2.3 implementations, if the Cache Handle is
+    // 0x0FFFF, management software must make no assumptions about the cache's
+    // attributes and should report all cache-related attributes as unknown.
+    // The definitive absence of a specific cache is identified by referencing
+    // a Cache Information structure and setting that structure's Installed
+    // Size field to 0.
+    //
+
+    // Serial Number
+    //
+    // Number of null-terminated string
+    //
+
+    // Asset Tag
+    //
+    // Number of null-terminated string
+    //
+
+    // Part Number
+    //
+    // Number of null-terminated string
+    //
+
+    // Core Count
+    //
+    // Number of cores per processor socket
+See 7.5.6. If the value is unknown, the field is set to 0. For core counts of 256 or greater, the Core Count field is set to FFh and the Core Count 2 field is set to the number of cores.
+
+    // Core Enabled
+    //
+    // Number of enabled cores per processor socket See 7.5.7. If the value is unknown, the field is set 0. For core counts of 256 or greater, the Core Enabled field is set to FFh and the Core Enabled 2 field is set to the number of enabled cores.
+
+    // Thread Count
+    //
+    // Number of threads per processor socket
+See 7.5.8. If the value is unknown, the field is set to 0. For thread counts of 256 or greater, the Thread Count field is set to FFh and the Thread Count 2 field is set to the number of threads.
+
+    // Processor Characteristics
+    //
+    // Defines which functions the processor supports See 7.5.9.
+
+    // Processor Family 2
+    //
+    // See 7.5.2.
+
+    // Core Count 2
+    //
+    // Number of Cores per processor socket.
+    //
+    // Supports core counts >255.
+    //
+    // If this field is present, it holds the core count for the processor
+    // socket.
+    //
+    // Core Count will also hold the core count, except for core counts that
+    // are 256 or greater. In that case, Core Count shall be set to 0xFF and
+    // Core Count 2 will hold the count.. See 7.5.6.
+    //
+    // Legal values:
+    // * 0x0000 = unknown
+    // * 0x0001-0x00FF = core counts 1 to 255. Matches Core Count value.
+    // * 0x0100-0xFFFE = Core counts 256 to 65534, respectively.
+    // * 0xFFFF = reserved.
+    //
+
+    // Core Enabled 2
+    //
+    // Number of enabled cores per processor socket.
+    //
+    // Supports core enabled counts >255.
+    //
+    // If this field is present, it holds the core enabled count for the
+    // processor socket.
+    //
+    // Core Enabled will also hold the core count, except for core counts that
+    // are 256 or greater. In that case, Core Enabled shall be set to 0xFF and
+    // Core Enabled 2 will hold the count.. See 7.5.7.
+    //
+    // Legal values:
+    // * 0x0000 = unknown
+    // * 0x0001-0x00FF = core counts 1 to 255. Matches Core Count value.
+    // * 0x0100-0xFFFE = Core counts 256 to 65534, respectively.
+    // * 0xFFFF = reserved.
+    //
+
+    // Thread Count 2
+    //
+    // Number of threads per processor socket.
+    //
+    // Supports thread counts >255.
+    //
+    // If this field is present, it holds the thread count for the processor
+    // socket.
+    //
+    // Thread Count will also hold the thread count, except for thread counts
+    // that are 256 or greater. In that case, Thread Count shall be set to 0xFF
+    // and Thread Count 2 will hold the count.. See 7.5.8.
+    //
+    // Legal values:
+    // * 0x0000 = unknown
+    // * 0x0001-0x00FF = core counts 1 to 255. Matches Core Count value.
+    // * 0x0100-0xFFFE = Core counts 256 to 65534, respectively.
+    // * 0xFFFF = reserved.
+    //
+
 		Handle = LogSmbiosTable(newSmbiosTable);
 	}
 	return;
@@ -960,6 +1490,108 @@ VOID PatchTableType7()
 		}
 	}
 
+  // Length
+  //
+  // Value is 0Fh for version 2.0 implementations, or 13h for version 2.1 implementations.
+
+  // Handle
+  //
+
+  // Socket Designation
+  //
+  // String number for reference designation EXAMPLE: “CACHE1”, 0
+  //
+
+  // Cache Configuration
+  // Bits 15:10 - Reserved, must be zero
+  // Bits 9:8 - Operational Mode
+  // * 00b – Write Through 01b – Write Back
+  // * 10b – Varies with Memory Address
+  // * 11b – Unknown
+  // Bit 7 - Enabled/Disabled (at boot time)
+  // * 1b – Enabled
+  // * 0b – Disabled
+  // Bits 6:5 - Location, relative to the CPU module:
+  // * 00b – Internal
+  // * 01b – External
+  // * 10b – Reserved
+  // * 11b – Unknown
+  // Bit 4 - Reserved, must be zero
+  // Bit 3
+  // * Cache Socketed
+  // * 1b – Socketed
+  // * 0b – Not Socketed
+  // Bits 2:0
+  // * Cache Level – 1 through 8 (For example, an L1 cache would use value
+  //   0b000 and an L3 cache would use 0b010.)
+  //
+
+  // Maximum Cache Size
+  //
+  // Maximum size that can be installed
+  //
+  // Bit 15 Granularity
+  // * 0 – 1K granularity
+  // * 1 – 64K granularity
+  // Bits 14:0
+  // * Max size in given granularity
+  //
+
+  // Installed Size
+  //
+  // Same format as Max Cache Size field; set to 0 if no cache is installed
+  // See 7.8.1.
+
+  // Supported SRAM Type
+  //
+  // See 7.8.2.
+
+  // Current SRAM Type
+  //
+  // See 7.8.2.
+
+  // Cache Speed
+  //
+  // Cache module speed, in nanoseconds The value is 0 if the speed is unknown.
+
+  // Error Correction Type
+  //
+  // Error-correction scheme supported by this cache component; see 7.8.3
+
+  // System Cache Type
+  //
+  // Logical type of cache; see 7.8.4
+
+  // Associativity
+  //
+  // Associativity of the cache; see 7.8.5
+
+  // Maximum Cache Size 2
+  //
+  // If this field is present, for cache sizes of 2047 MB or smaller the value
+  // in the Max size in given granularity portion of the field equals the size
+  // given in the corresponding portion of the Maximum Cache Size field, and
+  // the Granularity bit matches the value of the Granularity bit in the
+  // Maximum Cache Size field.
+  //
+  // For Cache sizes greater than 2047 MB, the Maximum Cache Size field is set
+  // to 0xFFFF and the Maximum Cache Size 2 field is present, the Granularity
+  // bit is set to 1b, and the size set as required; see 7.8.1.
+  //
+  // Bit 31 Granularity
+  // * 0 – 1K granularity
+  // * 1 – 64K granularity (always 1b for cache sizes >2047 MB)
+  // Bits 30:0
+  // * Max size in given granularity
+
+  // Installed Cache Size 2
+  //
+  // Same format as Maximum Cache Size 2 field; Absent or set to 0 if no cache
+  // is installed.
+  //
+  // See 7.8.1.
+  //
+
 	return;
 }
 
@@ -1014,6 +1646,73 @@ VOID PatchTableType9()
       Func = SlotDevices[Index].DevFuncNum & 7;
       DBG("insert table 9 for dev %x:%x\n", Dev, Func);
       UpdateSmbiosString(newSmbiosTable, &newSmbiosTable.Type9->SlotDesignation, SlotDevices[Index].SlotName);
+
+      // Length
+      //
+      // * 0x0C for version 2.0 implementations
+      // * 0x0D for versions 2.1 to 2.5
+      // * 0x11h for version 2.6 and later
+      //
+
+      // Handle
+
+      // Slot Designation
+      //
+      // String number for reference designation EXAMPLE: ‘PCI-1’,0
+
+      // Slot Type
+      //
+      // See 7.10.1.
+      //
+
+      // Slot Data Bus Width
+      //
+      // See 7.10.2.
+      //
+
+      // Current Usage
+      //
+      // See 7.10.3.
+      //
+
+      // Slot Length
+      //
+      // See 7.10.4.
+      //
+
+      // Slot ID
+      //
+      // See 7.10.5.
+      //
+
+      // Slot Characteristics 1
+      //
+      // See 7.10.6.
+      //
+
+      // Slot Characteristics 2
+      //
+      // See 7.10.7.
+      //
+
+      // Segment Group Number
+      //
+      // See 7.10.8.
+      //
+
+      // Bus Number
+      //
+      // See 7.10.8.
+      //
+
+      // Device/Function Number
+      //
+      // Bits 7:3 – device number
+      // Bits 2:0 – function number
+      //
+      // See 7.10.8.
+      //
+
       LogSmbiosTable(newSmbiosTable);
     }
   }
@@ -1039,6 +1738,19 @@ VOID PatchTableType11()
 
 	newSmbiosTable.Type11->StringCount = 1;
 	UpdateSmbiosString(newSmbiosTable, &newSmbiosTable.Type11->StringCount, OEMString);
+
+  // Type
+
+  // Length
+  //
+  // 0x5
+
+  // Handle
+  //
+
+  // Count
+  //
+  // Number of strings
 
 	LogSmbiosTable(newSmbiosTable);
 	return;
@@ -1325,7 +2037,6 @@ VOID PatchTableType17()
       // Handle, or instance number, associated with the structure.
       //
       newSmbiosTable.Type17->Hdr.Handle = (UINT16)(mHandle16 + 0x100 + Index);
-      // Asher: how do we know offset of 0x100 or starting base for mHandle16 of 0x1000?
 
       // Handle, or instance number, associated with the Physical Memory Array
       // to which this device belongs
@@ -1528,7 +2239,7 @@ VOID PatchTableType17()
 
   }
 
-  DBG("mTotalSystemMemory = %d\n", mTotalSystemMemory);
+  DBG("mTotalSystemMemory = %d MB (0x%x)\n", mTotalSystemMemory, mTotalSystemMemory);
 }
 
 VOID
@@ -1668,6 +2379,27 @@ VOID GetTableType32()
 			return;
 		}
 		gBootStatus = SmbiosTable.Type32->BootStatus;
+
+  // Length
+  //
+  // Length of the structure, in bytes; at least 0Bh
+  //
+
+  // Handle
+  //
+
+  // Reserved
+  //
+  // Reserved for future assignment by this specification; all bytes are set to 00h
+  //
+
+  // Boot Status
+  //
+  // Status and Additional Data fields that identify the boot status.
+  //
+  // See 7.33.1 for additional information.
+  //
+
 }
 
 /**
